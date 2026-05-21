@@ -85,20 +85,36 @@ RFB 04 — Adaptive Portfolio Manager — explicitly lists RegimeShift as an exa
 
 But we go beyond RFB 04 — we're building the **infrastructure layer** that other RFB 04 submissions will need to consume. Every other portfolio manager needs a rate signal. Every other portfolio manager needs to park idle capital somewhere. Every other portfolio manager needs cross-chain bridges. **We're building those, with our own portfolio manager as the first user.**
 
-### Traction metrics
+### Traction metrics (as of Day 2 — 2026-05-21)
 
 ```
-Live on Base mainnet since: 2026-04-26 (~4 weeks at submission)
-AUM under agent management: ~$105 of own capital
-Paid x402 endpoints live: 5 (ETH VRP, BTC VRP, USD SOFR, EUR SOFR, ETH SOFR)
-On-chain organic paid calls received: 1+ (and counting)
-Self-validated tx hashes: 4 (2 VRP, 2 SOFR — Day 1 deliverable)
-ARMS Pool volume in first 14h: ~1.5× TVL
-Uniswap whitelist status: Submitted for review
-Cross-chain throughput: CCTP V2 Base ↔ HyperEVM, 180s settlement, 0 failures since bridge-resilience deployment
-Methodology pages IPFS-pinned: 2 (vrp-v1, agent-sofr-v1)
-InterAgentRepo loans originated: TBD (target by Day 3)
+Live on Base mainnet since:      2026-04-26 (~4 weeks at submission)
+AUM under agent management:      ~$105 of own capital + active LP positions
+Paid x402 endpoints live:        4 (ETH VRP, BTC VRP, USD SOFR, max-LTV)
+On-chain organic paid calls:     1 (cross-service AI agent on /v1/asset/eth/vrp)
+Self-validated paid calls:       4 (one per endpoint, all on Base mainnet)
+ARMS Pool volume first 14h:      ~1.5× TVL
+Uniswap whitelist status:        Submitted for review
+Cross-chain throughput:          CCTP V2 Base ↔ HyperEVM, 180s settlement,
+                                 0 failures since bridge-resilience deployment
+InterAgentRepo deployed:         0xaea176DDa786c8B14802f92385749C7Cdf6C7400 (Base mainnet)
+Foundry tests:                   10/10 passing (originate, repay, default,
+                                 sig verify, replay, expiry, cap, rotation)
+Off-chain matching flows:        End-to-end signed quote validated
+                                 (POST intent → matcher → EIP-712 sig → on-chain ready)
+Methodology pages IPFS-pinned:   TBD (Day 3)
+InterAgentRepo loans originated: TBD (Day 3)
 ```
+
+### On-chain transaction trail (verifiable)
+
+| What | Tx hash |
+|------|---------|
+| Contract deploy | [`0xf2344c9c...ba2698`](https://basescan.org/tx/0xf2344c9cd8a90c9371d990cc8420bbf839ac14fb9fb099f8c5465f0354ba2698) |
+| ETH VRP organic | [`0x1a7fa538...96820f6`](https://basescan.org/tx/0x1a7fa5389aa1dea89af95f553ab8170d6e3f688910c872d81e47dcad896820f6) |
+| BTC VRP self-valid | [`0x04a37d60...c8aad`](https://basescan.org/tx/0x04a37d60c37c50830971837b531f7daf6b6ce77adca6f9ccf3d824880cdc8aad) |
+| Agent-SOFR self-valid | [`0x9ecaacbe...3449a`](https://basescan.org/tx/0x9ecaacbe0b97e1a05c868027a963100600082c6a90323f274f8e1d8d2623449a) |
+| max-LTV self-valid | [`0x5579313c...82a86`](https://basescan.org/tx/0x5579313cf5de4c4047f73e8ddae91ee6eea0b7ddd8da7ec45d8ae4d2d1782a86) |
 
 ### Vision
 

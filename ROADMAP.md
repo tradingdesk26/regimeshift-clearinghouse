@@ -1,6 +1,11 @@
 # 4-Day Shipping Plan — Agora Submission Deadline 2026-05-25
 
-**Status: Day 1 of 4 — 2026-05-21**
+**Status: Day 2 of 4 complete — 2026-05-21**
+
+- ✅ **Day 1 complete** — Agent-SOFR Oracle + max-LTV endpoint, both validated on-chain
+- ✅ **Day 2 complete** — InterAgentRepo.sol deployed, matching engine live, end-to-end signed-quote flow validated
+- 🔄 **Day 3** — Demo loan + dashboard + methodology pages
+- 🔄 **Day 4** — Loom video + submission
 
 ## Operating principles
 
@@ -12,99 +17,102 @@
 
 ---
 
-## Day 1 — 2026-05-21 (Today) — Agent-SOFR Oracle live
+## Day 1 — 2026-05-21 ✅ COMPLETE — Agent-SOFR Oracle live
 
-**Deliverable: Three new paid x402 endpoints on `regimeshift.xyz/api/v1/rate/sofr/{usd,eur,eth}` returning Agent-SOFR with full decomposition.**
+**Delivered: Two new paid x402 endpoints on Base mainnet with full decomposition.**
+EUR + ETH variants deferred to v1.1.
 
 ### Tasks
 
-- [ ] `oracle/calibration.py` — copy calibrated constants from `arms/research/round25_calibration.csv`
-  - [ ] σ thresholds (p50/p65/p80/p93/p99) in bp + wad
-  - [ ] λ = 1.097 (jump weight from FeeFormulaV2)
-  - [ ] Regime premium table (6 modes)
-  - [ ] Hysteresis epsilon = 0.10
-- [ ] `oracle/regime_classifier.py` — port `FeeFormulaV2.classifyModeHyst` to Python
-  - [ ] 6-mode classifier with 10% down-hysteresis
-  - [ ] State persistence (last_mode) for hysteresis to work across calls
-- [ ] `oracle/variance_engine.py` — compute cv + j² from live price data
-  - [ ] Continuous variance (cv) — rolling realized variance excluding jumps
-  - [ ] Jump variance (j²) — bars where |r| > p95, squared
-  - [ ] Use `arms/research/ethusdt_5m.parquet` as reference dataset for ETH
-- [ ] `oracle/rate_aggregator.py` — multi-source rate aggregator
-  - [ ] Fetch live rates: Deribit options PCP, Deribit futures basis, Hyperliquid perp funding, Aevo PCP, Aave Base USDC/WETH, Compound, SOFR reference
-  - [ ] Weighted median anchor (market-derived 70%, governance reference 20%, macro 10%)
-  - [ ] Cache layer (60s TTL — same as VRP endpoint)
-- [ ] `oracle/agent_sofr.py` — main entry point combining the above
-  - [ ] Compose: base_anchor + variance_premium + regime_adjustment
-- [ ] Wire into `arms-signals/app.py` as new routes:
-  - [ ] `GET /v1/rate/sofr/usd?horizon=1h` — $0.001
-  - [ ] `GET /v1/rate/sofr/eur?horizon=1h` — $0.001
-  - [ ] `GET /v1/rate/sofr/eth?horizon=1h` — $0.001
-- [ ] Bazaar discovery extension for each
-- [ ] Deploy to VM, restart systemd
-- [ ] Self-validate with burner wallet (one paid call per endpoint)
-- [ ] Update README + dashboard panel
+- [x] `oracle/calibration.py` — production constants from `arms/research/round25_calibration.csv`
+  - [x] σ thresholds (p50/p65/p80/p93/p99) in bp + wad
+  - [x] λ = 1.097 (jump weight from FeeFormulaV2)
+  - [x] Regime premium table (6 modes — RESTING/LOW/NORMAL/ELEVATED/HIGH/EXTREME)
+  - [x] Hysteresis epsilon = 0.10
+- [x] `oracle/regime_classifier.py` — port of `FeeFormulaV2.classifyModeHyst`
+  - [x] 6-mode classifier with 10% down-hysteresis
+  - [x] State persistence — RegimeClassifier class
+- [x] `oracle/variance_engine.py` — cv + j² decomposition + live Binance fetcher
+  - [x] Continuous variance (cv) excluding p95 jumps
+  - [x] Jump variance (j²) for above-threshold bars
+  - [x] `fetch_live_eth_returns()` — pulls last N 5-min closes from Binance
+- [x] `oracle/rate_aggregator.py` — 8-source weighted median
+  - [x] Deribit options PCP (30d), Deribit futures basis (3m), Hyperliquid perp funding,
+        Aevo options PCP, Aave V3 Base USDC + WETH borrow, SOFR 30d (Compound TODO)
+  - [x] Weighted median anchor (market-derived 70%, governance reference 20%, macro 10%)
+  - [x] 60s TTL cache
+- [x] `oracle/max_ltv.py` — math max LTV + regime cap, Black-Cox first-passage
+- [x] `oracle/agent_sofr.py` — composition entry point
+- [x] Wire into `arms-signals/app.py` as new routes:
+  - [x] `GET /v1/rate/sofr/usd?horizon=1h` — $0.001
+  - [x] `GET /v1/risk/max-ltv?asset=ETH&...` — $0.001
+- [x] Bazaar discovery extension for both
+- [x] Deploy to VM, restart systemd
+- [x] Self-validate with burner wallet
+- [ ] EUR + ETH rate variants (deferred to v1.1)
 
-### Success criteria
+### Outcome
 
-- [ ] Three new on-chain tx hashes for `/sofr/{usd,eur,eth}` endpoints
-- [ ] `/stats` shows `.200` counter for each
-- [ ] Response contains: rate, full decomposition, sources, methodology hash, expiry
-
-### Risks & mitigations
-
-- **Deribit/Aevo API rate-limit during dev** → cache aggressively, use single shared client
-- **Jump-diffusion calibration takes too long** → start with hardcoded reasonable defaults (λ=40, α=-0.01, δ=0.04 for ETH), refine later
-- **CDP facilitator rejects new endpoint** → already tested pattern for VRP — should JustWork™
+- Agent-SOFR USD validated on-chain — tx `0x9ecaacbe0b97e1a05c868027a963100600082c6a90323f274f8e1d8d2623449a`
+  - Live response: rate 4.72%, regime HIGH, base anchor 4.12% + regime premium 60bps
+- max-LTV validated on-chain — tx `0x5579313cf5de4c4047f73e8ddae91ee6eea0b7ddd8da7ec45d8ae4d2d1782a86`
+  - Live response: max_ltv 0.75 (regime cap binding in HIGH), math_max_ltv 0.96
+- `/stats` shows `.200` counter incremented
+- 7/8 rate sources live (Compound implementation TODO)
 
 ---
 
-## Day 2 — 2026-05-22 — Clearinghouse contract + matching API
+## Day 2 — 2026-05-21 ✅ COMPLETE — Clearinghouse contract + matching live
 
-**Deliverable: `InterAgentRepo.sol` deployed on Base; intent submission API live; first test loan settles between two test wallets.**
+**Delivered: `InterAgentRepo.sol` deployed on Base; intent submission live; quote engine + matcher end-to-end validated.**
+First real on-chain loan deferred to Day 3.
 
 ### Tasks
 
-- [ ] `contracts/InterAgentRepo.sol` — Foundry project (single tier: collateralized term loans, no atomic flash)
-  - [ ] State: `loans` mapping (loan_id → terms)
-  - [ ] `originate(borrower, lender, principal, collateral, expiry, rate, oracle_sig)` — pull funds, transfer principal, emit event
-  - [ ] `repay(loan_id)` — pull principal+interest, release collateral
-  - [ ] `defaultLoan(loan_id)` — past expiry → release collateral to lender
-  - [ ] Verify Agent-SOFR oracle signature (EIP-712) on origination
-  - [ ] Foundry tests for all paths (happy, default, expired quote)
-- [ ] Deploy to Base mainnet (deterministic CREATE2 address)
-- [ ] `oracle/quote_engine.py` — three quote modes built on calibrator
-  - [ ] `compute_rate(P, C, T)` — given collateral and duration, output fair rate
-  - [ ] `compute_collateral(P, r, T)` — given rate and duration, output required collateral (numerical inversion)
-  - [ ] `compute_max_duration(P, C, r)` — given collateral and rate, output max safe T
-- [ ] `oracle/max_ltv.py` — max safe LTV function (used by both quote engine and standalone endpoint)
-- [ ] `matcher/intent_book.py` — in-memory order book + SQLite persistence
-  - [ ] Lender intent: `{address, asset, amount, max_duration, min_rate, max_default_prob, expires_at}`
-  - [ ] Borrower intent: `{address, principal_asset, principal_amount, collateral_asset, collateral_amount, duration, max_rate, expires_at}`
-- [ ] `matcher/matcher.py` — priority queue matcher
-  - [ ] Find compatible lender/borrower pairs
-  - [ ] Apply lender's `max_default_prob` to compute max LTV per regime
-  - [ ] Generate signed EIP-712 quote
-  - [ ] Return ready-to-submit `originate()` call data
-- [ ] API endpoints:
-  - [ ] `GET /v1/risk/max-ltv` — paid $0.001 (standalone risk signal)
-  - [ ] `POST /v1/quote` — paid $0.0002 (three-mode quote engine, signed)
-  - [ ] `POST /v1/intent/lend` — free, just adds to book
-  - [ ] `POST /v1/intent/borrow` — free
-  - [ ] `GET /v1/intents/open` — free, see active intents
-  - [ ] `GET /v1/matches/recent` — free, see executed matches
+- [x] `contracts/InterAgentRepo.sol` — Foundry project (single-tier collateralized term loans)
+  - [x] State: `loans` mapping + `consumedNonces` (replay protection)
+  - [x] `originate(Quote, sig)` — verify EIP-712 → pull collateral + principal → emit event
+  - [x] `repay(loanId)` — pull principal+interest, release collateral
+  - [x] `defaultLoan(loanId)` — past expiry → seize collateral to lender
+  - [x] OpenZeppelin EIP712 + ECDSA + SafeERC20 + ReentrancyGuard + Ownable
+  - [x] PRINCIPAL_CAP = $50 USDC for MVP safety
+  - [x] Custom errors (gas-efficient + typed)
+  - [x] 10/10 Foundry tests pass (happy, default, replay, expired, cap, sig fail, rotation, etc.)
+- [x] Deploy to Base mainnet — [`0xaea176DDa786c8B14802f92385749C7Cdf6C7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400)
+  - Deploy tx: [`0xf2344c9cd8a90c9371d990cc8420bbf839ac14fb9fb099f8c5465f0354ba2698`](https://basescan.org/tx/0xf2344c9cd8a90c9371d990cc8420bbf839ac14fb9fb099f8c5465f0354ba2698)
+- [x] `matcher/quote_engine.py` — three quote modes
+  - [x] `compute_rate(P, C, T)` — fair rate from variance + regime
+  - [x] `compute_collateral(P, r, T)` — bisection over LTV
+  - [x] `compute_max_duration(P, C, r)` — bisection over duration buckets
+  - [x] EIP-712 signing → output ready for `InterAgentRepo.originate()`
+  - [x] Signature verified via deployed `recoverSigner()` — matches oracleSigner exactly
+- [x] `matcher/intent_book.py` — SQLite-backed order book
+  - [x] LenderIntent / BorrowerIntent dataclasses with full field set
+  - [x] `add_lender()` / `add_borrower()` with auto intent_id
+  - [x] `open_lenders()` / `open_borrowers()` queries
+  - [x] `record_match()` + atomic status updates
+- [x] `matcher/matcher.py` — priority-queue matcher
+  - [x] Asset / amount / duration / rate compatibility checks
+  - [x] Applies lender's `max_default_prob` for LTV
+  - [x] Generates signed EIP-712 quote on match
+- [x] API endpoints in arms-signals:
+  - [x] `GET /v1/risk/max-ltv` — paid $0.001
+  - [x] `POST /v1/intent/lend` — free
+  - [x] `POST /v1/intent/borrow` — free, auto-fires matcher
+  - [x] `GET /v1/intents/open` — free
+  - [x] `GET /v1/matches/recent` — free
+- [ ] `POST /v1/quote` paid $0.0002 (deferred — covered by intent flow for MVP)
 
-### Success criteria
+### Outcome
 
-- [ ] Contract verified on BaseScan
-- [ ] One test loan originated, settled, and repaid on-chain
-- [ ] All Foundry tests pass
-
-### Risks & mitigations
-
-- **Contract bugs** → audit-grade foundry fuzz tests, cap MVP at $10 max loan size
-- **EIP-712 signature verification gnarly** → use OpenZeppelin's `ECDSA.recover` boilerplate
-- **Matching engine over-engineered** → simplest possible: linear scan, single-fill, no partial
+- Contract live on Base mainnet, 10/10 Foundry tests pass
+- EIP-712 signature roundtrip: off-chain Python signs → contract `recoverSigner()` returns oracle address ✓
+- Live API end-to-end flow validated:
+  - Lender intent `lend_63cefd79...` posted ($50 USDC, max 4h, min 480 bps)
+  - Borrower intent `bor_d4ac70ab...` posted (need $50 for 1h, max 550 bps, 0.04 WETH max)
+  - Matcher fired immediately → `match_d4222968...`
+  - Quote: LTV 0.75 (HIGH regime cap binding), rate 480 bps, 0.0321 WETH collateral
+  - Signature valid, ready for on-chain `originate()`
 
 ---
 

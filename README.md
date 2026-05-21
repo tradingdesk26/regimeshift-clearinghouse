@@ -16,10 +16,16 @@ Built for the [Agora Agents Hackathon](https://thecanteenapp.com/) under [RFB 04
 | **Adaptive portfolio agent** (RegimeShift) | ✅ Live on Base mainnet, real capital |
 | **Cross-chain CCTP V2** (Base ↔ HyperEVM) | ✅ Live, 180s settlement |
 | **Custom Uniswap v4 hook** (ARMSHookV3) | ✅ Live, ~1.5× TVL in first 14h |
-| **Agent-SOFR Oracle** | 🔄 Building (Day 1) |
-| **Inter-Agent Repo escrow contract** | 🔄 Building (Day 2-3) |
-| **Off-chain matching engine** | 🔄 Building (Day 2-3) |
+| **Agent-SOFR Oracle** (`/v1/rate/sofr/usd`) | ✅ Live, paid + on-chain validated |
+| **Max-LTV risk endpoint** (`/v1/risk/max-ltv`) | ✅ Live, paid + on-chain validated |
+| **InterAgentRepo.sol** escrow contract | ✅ Deployed [`0xaea1...7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) — Foundry 10/10 tests pass |
+| **Off-chain matching engine** | ✅ Live, end-to-end validated |
+| **Intent submission APIs** (`/v1/intent/*`) | ✅ Live, free (settlement on-chain) |
+| **EIP-712 quote signing** | ✅ Verified via deployed `recoverSigner()` |
 | **Live MVP demo loan** | 🔄 Target by Day 3 |
+| **Dashboard "Live Intents" panel** | 🔄 Target by Day 3 |
+| **Methodology pages + IPFS pinning** | 🔄 Target by Day 3 |
+| **Loom video + Agora submission** | 🔄 Target by Day 4 (deadline 2026-05-25) |
 
 ---
 
@@ -45,25 +51,44 @@ This repo builds those primitives. See [`docs/01-thesis.md`](docs/01-thesis.md) 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  COMPUTE LAYER (off-chain, millisecond)                 │
-│  • Agent-SOFR rate aggregation (multi-source weighted)  │
-│  • Merton jump-diffusion premium                         │
-│  • RFQ matching engine                                   │
-│  • VRP / regime classification (existing)                │
+│  • Agent-SOFR multi-source rate aggregation             │
+│  • Variance decomposition: cv + λ·j² (λ=1.097)          │
+│  • 6-mode regime classifier (production-calibrated)     │
+│  • Quote engine — 3 modes (rate / collateral / duration)│
+│  • RFQ matching engine + intent book (SQLite)           │
+│  • EIP-712 quote signing                                │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       │ EIP-712 signed quotes
                       │
 ┌─────────────────────▼───────────────────────────────────┐
-│  REGISTRY LAYER (on-chain, immutable)                   │
-│  • ERC-8004 agent identity                              │
-│  • InterAgentRepo.sol escrow + settlement                │
-│  • x402 paid endpoint settlements                        │
-│  • IPFS methodology hashes                               │
-│  • Trade audit trail (event logs)                        │
+│  REGISTRY LAYER (on-chain, immutable, Base mainnet)     │
+│  • InterAgentRepo.sol escrow at 0xaea1...7400           │
+│    - originate(Quote, sig) → pull collateral, transfer │
+│      principal, atomic                                  │
+│    - repay(loanId) → return principal+interest          │
+│    - defaultLoan(loanId) → seize collateral             │
+│  • x402 paid endpoint settlements (USDC, CDP)           │
+│  • EIP-712 signature verification via ECDSA             │
+│  • Trade audit trail (event logs)                       │
+│  • IPFS methodology hashes (planned)                    │
 └─────────────────────────────────────────────────────────┘
 ```
 
 Detailed in [`docs/02-agent-sofr.md`](docs/02-agent-sofr.md) and [`docs/03-clearinghouse.md`](docs/03-clearinghouse.md).
+
+## On-chain artifacts (Base mainnet, chain_id 8453)
+
+| Artifact | Address / Tx |
+|----------|-------------|
+| **InterAgentRepo.sol** | [`0xaea176DDa786c8B14802f92385749C7Cdf6C7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) |
+| Contract deploy | [`0xf2344c9c...ba2698`](https://basescan.org/tx/0xf2344c9cd8a90c9371d990cc8420bbf839ac14fb9fb099f8c5465f0354ba2698) |
+| ETH VRP — first organic paid call | [`0x1a7fa538...96820f6`](https://basescan.org/tx/0x1a7fa5389aa1dea89af95f553ab8170d6e3f688910c872d81e47dcad896820f6) |
+| BTC VRP — self-validated paid call | [`0x04a37d60...c8aad`](https://basescan.org/tx/0x04a37d60c37c50830971837b531f7daf6b6ce77adca6f9ccf3d824880cdc8aad) |
+| Agent-SOFR — self-validated paid call | [`0x9ecaacbe...3449a`](https://basescan.org/tx/0x9ecaacbe0b97e1a05c868027a963100600082c6a90323f274f8e1d8d2623449a) |
+| max-LTV — self-validated paid call | [`0x5579313c...82a86`](https://basescan.org/tx/0x5579313cf5de4c4047f73e8ddae91ee6eea0b7ddd8da7ec45d8ae4d2d1782a86) |
+| Oracle signer | `0x3d6EF3B451Abaf79eb0a5c08089518fB3f4de8b5` |
+| Seller pay-to wallet | `0x82B17D0bb4De9ae6c3491257B60E8245e70acd7B` |
 
 ---
 
