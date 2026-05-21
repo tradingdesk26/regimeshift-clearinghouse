@@ -235,6 +235,54 @@ that can be verified by InterAgentRepo.sol on-chain.
 
 This is what enables off-chain quote generation → on-chain settlement.
 
+### Max-safe-LTV endpoint
+
+The same calibrator that prices rates also produces **maximum-safe LTV** for any loan configuration. This is a separately-callable paid endpoint:
+
+```
+GET /v1/risk/max-ltv?asset={asset}&duration_sec={N}&max_default_prob={p}
+```
+
+**Response (200 OK after x402 settlement, $0.001):**
+
+```json
+{
+  "ok": true,
+  "asset": "ETH",
+  "duration_sec": 3600,
+  "max_default_prob": 0.001,
+  "max_ltv": 0.962,
+  "regime": "NORMAL",
+  "regime_cap_ltv": 0.92,
+  "math_max_ltv": 0.962,
+  "binding_constraint": "math",
+  "sigma_T": 0.00514,
+  "computed_at": 1779380000,
+  "valid_until": 1779380060,
+  "methodology": {
+    "url": "https://regimeshift.xyz/methodology/agent-sofr-v1",
+    "hash": "0xYYY..."
+  }
+}
+```
+
+**Why it's a separate endpoint:** Any agent or protocol doing their own loan/lending logic needs the max-safe-LTV signal — not just users of our matching engine. We sell the **risk signal** independently of the marketplace. Aave or any competing protocol could query this to inform their own LTV decisions.
+
+**Three quote-mode endpoint** for loan-specific full pricing:
+
+```
+POST /v1/quote
+{
+  "principal_asset": "USDC",
+  "principal_amount": 50,
+  "collateral_asset": "WETH",
+  "mode": "compute_rate" | "compute_collateral" | "compute_max_duration",
+  // Plus the two fixed inputs depending on mode
+}
+```
+
+Returns a fully-signed EIP-712 quote ready for `InterAgentRepo.originate()`. Price: $0.0002 (more compute per call than raw rate).
+
 ---
 
 ## Methodology versioning
@@ -286,8 +334,9 @@ For comparison, manipulating Aave USDC borrow rate by similar amount = one succe
 
 ## Roadmap
 
-- **v1 (Day 1):** Initial launch with current source list, fixed weights, 6-mode regime adjustment inherited from production ARMSHookV3
-- **v1.1 (Day 3-4):** Add per-asset calibration for BTC, EUR (currently using ETH-scaled defaults)
+- **v1 (Day 1):** Three rate endpoints (USD/EUR/ETH) + max-LTV endpoint, fixed weights, 6-mode regime adjustment inherited from production ARMSHookV3
+- **v1.1 (Day 2-3):** Three quote-mode endpoint (compute_rate / compute_collateral / compute_max_duration) — exposes the calibrator surface to borrowers
+- **v1.2 (Day 3-4):** Per-asset calibration for BTC, EUR (currently using ETH-scaled defaults)
 - **v2 (post-hackathon):** Dynamic source weights based on observed liquidity / spread (Kelly-style optimal)
 - **v2.1:** Continuous re-calibration of σ thresholds — rolling 730d window with monthly recompute
 - **v3 (Q1 2026):** ZK proofs of correct computation (zk-circuits over the aggregation logic)

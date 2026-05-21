@@ -2,14 +2,9 @@
 
 ## What it is
 
-A bilateral RFQ marketplace where agents can lend, borrow, and swap collateralized capital at sub-block to multi-hour horizons. **The interbank market for AI agents**, with Agent-SOFR as the benchmark rate.
+A bilateral RFQ marketplace where agents lend, borrow, and swap collateralized capital at minute-to-hour horizons. **The interbank market for AI agents**, with Agent-SOFR as the benchmark rate.
 
-Two settlement layers serve different timescales:
-
-| Layer | Horizon | Collateral | Settlement |
-|-------|---------|-----------|-----------|
-| **L1 Atomic** | Sub-block (<12s) | None (atomic revert) | Within single transaction |
-| **L2 Term** | Minutes to hours | On-chain locked | `InterAgentRepo.sol` escrow |
+**Single pricing principle:** collateralized term loans. No atomic flash tier — that's already commoditized (Aave / Balancer). Our unique value is duration-aware, regime-aware pricing that doesn't exist anywhere on-chain today.
 
 ---
 
@@ -28,65 +23,121 @@ Agent B (borrower) intent ┘                                       │
 
 ---
 
-## Layer 1 — Atomic flash loans (no collateral)
+## Trinity: Collateral ↔ Duration ↔ Rate
 
-### When it applies
-
-Agent borrows funds to execute a strategy that completes within a single block (~12s on Base). Examples:
-
-- Cross-DEX arbitrage between two AMMs
-- Collateral swap (sell collateral A, buy collateral B in one tx)
-- Liquidation atomicity
-- MEV recapture
-
-### How it works
+Every loan has three pricing dimensions. **Any two determine the third** via the calibrator:
 
 ```
-1. Agent calls InterAgentRepo.flashLoan(asset, amount, callbackContract, data)
-2. Contract sends amount to callbackContract
-3. callbackContract executes strategy
-4. callbackContract returns amount + flash fee to InterAgentRepo
-5. If step 4 fails → entire transaction reverts (loan never happened)
+         duration (T)
+              ▲
+              │     ╱
+              │   ╱  surface defined by calibrator:
+              │ ╱    total_variance(T) × LTV → P_default → required_premium
+              │╱
+              └──────────► LTV (collateral inverse)
+             ╱
+           ╱
+       rate (r)
 ```
 
-No collateral required. Risk = zero (atomic guarantee).
+### Three quote modes
 
-Flash fee = `agent_sofr(asset, 1m)` × small premium for atomicity.
+| Mode | Borrower fixes | We compute |
+|------|---------------|------------|
+| `compute_rate` | collateral + duration | fair rate |
+| `compute_collateral` | rate + duration | required collateral (LTV) |
+| `compute_max_duration` | rate + collateral | maximum safe duration |
 
-### MVP scope
+This is exposed via `POST /v1/quote`:
 
-Not in 4-day shipping plan. Reuses existing Aave/Balancer flash loan infrastructure for now. Custom flash variant is post-hackathon.
+```json
+{
+  "principal_asset": "USDC",
+  "principal_amount": 50,
+  "collateral_asset": "WETH",
+  "mode": "compute_rate",
+  "collateral_amount": 0.025,
+  "duration_sec": 3600
+}
+
+// Response (after $0.0002 x402 settlement):
+{
+  "rate_bps": 425,
+  "ltv": 0.962,
+  "regime": "NORMAL",
+  "variance_premium_bps": 0.04,
+  "regime_premium_bps": 15,
+  "max_safe_ltv_at_this_duration": 0.92,
+  "expiry_timestamp": 1779385000,
+  "oracle_signature": "0x...",
+  "methodology_hash": "0x..."
+}
+```
+
+`compute_collateral` mode does numerical inversion (Newton's method) to solve for LTV given target rate. `compute_max_duration` solves the inverse: max T such that required premium ≤ target rate.
 
 ---
 
-## Layer 2 — Term loans (collateralized)
+## Dynamic LTV — capital efficiency vs Aave
 
-### When it applies
+Aave V3 statically sets WETH collateral LTV to **80%**, calibrated for the worst-case regime. Our calibrator dynamically sizes LTV to actual variance:
 
-Cross-block, cross-chain, or otherwise non-atomic strategies. Examples:
+| Regime | Time-share | σ_5min | Our max LTV | Aave (static) | Capital efficiency gain |
+|--------|-----------|--------|-------------|---------------|-------------------------|
+| RESTING | 46% | <14 bp | **98%** | 80% | **+18%** |
+| LOW | 16% | 17 bp | **96%** | 80% | **+16%** |
+| NORMAL | 16% | 20 bp | **92%** | 80% | **+12%** |
+| ELEVATED | 14% | 28 bp | **85%** | 80% | **+5%** |
+| HIGH | 7% | 45 bp | **75%** | 80% | **−5%** (safer for lenders) |
+| EXTREME | 1% | 80+ bp | **60%** or pause | 80% | **−20%** (safer for lenders) |
 
-- Bridge timing windows (CCTP V2 attestation = 60s, longer than one block)
-- Hold position through multiple oracle updates
-- Cross-chain arbitrage spanning Base ↔ HyperEVM
-- Multi-step strategy with external API calls
+**Weighted average: ~12% capital efficiency gain in calm markets + better lender protection in shocks.**
 
-### Settlement contract: `InterAgentRepo.sol`
+### Numerical example
+
+For a $1,000 USDC loan over 1 hour:
+
+| Regime | Aave required collateral | Our required collateral | Borrower frees up |
+|--------|--------------------------|-------------------------|-------------------|
+| RESTING | $1,250 (LTV 80%) | $1,020 (LTV 98%) | **$230 in liquid capital** |
+| NORMAL | $1,250 | $1,087 (LTV 92%) | **$163** |
+| HIGH | $1,250 | $1,333 (LTV 75%) | (lender protected from default cascade) |
+| EXTREME | $1,250 | $1,667 or paused | (matching halted to prevent bad debt) |
+
+In RESTING + LOW + NORMAL (78% of time) borrowers save 12-23% of collateral that's locked up under Aave's static model. **This freed capital becomes liquidity in our pool**, compounding the efficiency.
+
+### Why Aave can't do this
+
+| Aspect | Aave constraint | We sidestep because |
+|--------|-----------------|---------------------|
+| LTV requires governance vote | Multi-week timelock | Calibrator updates per-block |
+| No on-chain regime classifier | Gas-expensive | Compute off-chain, sig on-chain |
+| Massive TVL = cascade risk on liquidations | Conservative LTV to prevent runs | Bilateral atomic — no cascades |
+| One LTV for all lenders | Can't satisfy varied risk preferences | Lenders specify `max_default_prob` per intent |
+
+**Each is a structural disadvantage Aave can't fix without rebuilding.** Our agent-native architecture sidesteps all four.
+
+---
+
+## Settlement contract: `InterAgentRepo.sol`
 
 ```solidity
 struct Loan {
     address borrower;
     address lender;
     address principal_token;     // What's being lent (e.g., USDC)
-    uint256 principal_amount;     // How much
+    uint256 principal_amount;
     address collateral_token;    // What's collateralizing (e.g., WETH)
     uint256 collateral_amount;
+    uint256 origination_timestamp;
     uint256 expiry_timestamp;
-    uint256 rate_bps;             // Rate at origination (in basis points)
+    uint256 rate_bps;             // Rate at origination (basis points)
     bool repaid;
     bool defaulted;
 }
 
 mapping(bytes32 => Loan) public loans;
+address public agentSofrOracle;   // Oracle keypair address for sig verification
 ```
 
 ### Three core functions
@@ -105,13 +156,14 @@ function originate(
     uint256 rate_bps,
     bytes calldata oracle_signature  // EIP-712 sig from Agent-SOFR
 ) external returns (bytes32 loan_id) {
-    // Verify the rate matches Agent-SOFR signature
+    // Verify the quote signature
     bytes32 quote_hash = keccak256(abi.encode(
         principal_token, principal_amount,
         collateral_token, collateral_amount,
         expiry_timestamp, rate_bps
     ));
     require(_verifyOracleSig(quote_hash, oracle_signature), "bad sig");
+    require(block.timestamp < expiry_timestamp, "expired quote");
     
     // Pull collateral from borrower
     IERC20(collateral_token).transferFrom(borrower, address(this), collateral_amount);
@@ -122,16 +174,13 @@ function originate(
     // Record loan
     loan_id = quote_hash;
     loans[loan_id] = Loan({
-        borrower: borrower,
-        lender: lender,
-        principal_token: principal_token,
-        principal_amount: principal_amount,
-        collateral_token: collateral_token,
-        collateral_amount: collateral_amount,
+        borrower: borrower, lender: lender,
+        principal_token: principal_token, principal_amount: principal_amount,
+        collateral_token: collateral_token, collateral_amount: collateral_amount,
+        origination_timestamp: block.timestamp,
         expiry_timestamp: expiry_timestamp,
         rate_bps: rate_bps,
-        repaid: false,
-        defaulted: false
+        repaid: false, defaulted: false
     });
     
     emit LoanOriginated(loan_id, borrower, lender, principal_amount, rate_bps);
@@ -150,10 +199,7 @@ function repay(bytes32 loan_id) external {
     uint256 interest = loan.principal_amount * loan.rate_bps * time_elapsed / (365 days * 10000);
     uint256 total_repay = loan.principal_amount + interest;
     
-    // Pull repayment from borrower, send to lender
     IERC20(loan.principal_token).transferFrom(loan.borrower, loan.lender, total_repay);
-    
-    // Release collateral back to borrower
     IERC20(loan.collateral_token).transfer(loan.borrower, loan.collateral_amount);
     
     loan.repaid = true;
@@ -161,7 +207,7 @@ function repay(bytes32 loan_id) external {
 }
 ```
 
-#### 3. `default(loan_id)` — Past expiry, lender claims collateral
+#### 3. `defaultLoan(loan_id)` — Past expiry, lender claims collateral
 
 ```solidity
 function defaultLoan(bytes32 loan_id) external {
@@ -169,7 +215,6 @@ function defaultLoan(bytes32 loan_id) external {
     require(!loan.repaid && !loan.defaulted, "loan closed");
     require(block.timestamp > loan.expiry_timestamp, "not expired yet");
     
-    // Transfer collateral to lender
     IERC20(loan.collateral_token).transfer(loan.lender, loan.collateral_amount);
     
     loan.defaulted = true;
@@ -177,28 +222,62 @@ function defaultLoan(bytes32 loan_id) external {
 }
 ```
 
-### Risk management
+---
 
-- **LTV at origination:** Off-chain matching enforces LTV ≥ 105% based on regime
-  - LOW regime: LTV ≤ 95% (allow more leverage)
-  - MID: LTV ≤ 85%
-  - HIGH: LTV ≤ 75%
-  - EXTREME: matching paused
-- **Expiry buffer:** Off-chain matching adds ~5min buffer to allow for oracle update delays
+## Risk management
+
+**LTV enforcement is off-chain.** The matching engine computes max safe LTV per regime + duration + lender risk tolerance, and only generates quotes within that envelope. The on-chain contract trusts the signed quote.
+
+### Max safe LTV calculation
+
+```python
+def max_safe_ltv(
+    asset: str,
+    duration_sec: int,
+    regime: str,
+    lender_max_default_prob: float = 0.001,  # 0.1% default tolerance
+) -> float:
+    bars = duration_sec / 300  # 5-min bars
+    cv, j2 = current_variance(asset)
+    sigma_T = sqrt((cv + 1.097 * j2) * bars)
+    
+    # Mathematical max from variance:
+    # P_default = Φ(-ln(1/LTV) / σ_T) ≤ lender_max_default_prob
+    z = abs(norm_ppf(lender_max_default_prob))
+    math_max_ltv = exp(-z * sigma_T)
+    
+    # Hard regime cap (additional safety against jump risk):
+    return min(math_max_ltv, REGIME_MAX_LTV[regime])
+
+
+REGIME_MAX_LTV = {
+    "RESTING":  0.98,
+    "LOW":      0.96,
+    "NORMAL":   0.92,
+    "ELEVATED": 0.85,
+    "HIGH":     0.75,
+    "EXTREME":  0.60,  # or pause matching entirely
+}
+```
+
+### Other risk controls
+
+- **Expiry buffer:** Off-chain matching adds 5-min buffer between quote expiry and loan expiry to allow for oracle update delays
+- **Lender risk tolerance:** Each lender intent includes `max_default_prob` (default 0.1%). Conservative lenders get tighter LTV; aggressive lenders accept looser LTV at higher rate
 - **MVP simplifications (Day 2-3):**
   - No partial fills (full intent or nothing)
   - Fixed duration buckets (1h, 4h, 24h)
-  - One asset pair: USDC borrow against WETH collateral
+  - Single asset pair: USDC borrow against WETH collateral
   - Max loan size $50 (capped via `require(principal_amount < 50e6)`)
-  - No liquidation pre-expiry (collateral can only be claimed on default)
+  - No pre-expiry liquidation (collateral claimable only on default)
 
 ### Future risk extensions (post-MVP)
 
-- **Pre-expiry liquidation** when LTV deteriorates (price oracle check)
-- **Partial repayment** + partial collateral release
-- **Margin calls** triggered when LTV crosses threshold
+- **Pre-expiry liquidation** when LTV deteriorates (chainlink price oracle check + grace period)
+- **Partial repayment** + proportional collateral release
+- **Margin calls** triggered when LTV crosses threshold (notification to borrower)
 - **Insurance pool** funded by orchestrator take to cover gap losses
-- **ERC-8004 credit history** → variable LTV per counterparty
+- **ERC-8004 credit history** → per-counterparty default-prob spread
 
 ---
 
@@ -208,14 +287,15 @@ function defaultLoan(bytes32 loan_id) external {
 
 Lenders and borrowers submit intents via REST API:
 
-```
+```json
 POST /v1/intent/lend
 {
   "wallet": "0xLender...",
   "asset": "USDC",
-  "amount": 50,                    // in token units (e.g., 50 USDC)
+  "amount": 50,
   "max_duration": "4h",
-  "min_rate_bps": 380,             // 3.80% annual
+  "min_rate_bps": 380,
+  "max_default_prob": 0.001,    // 0.1% default tolerance (risk preference)
   "expires_at": 1779385000
 }
 
@@ -225,7 +305,7 @@ POST /v1/intent/borrow
   "principal_asset": "USDC",
   "principal_amount": 50,
   "collateral_asset": "WETH",
-  "collateral_amount_max": 0.025,  // willing to post up to 0.025 WETH
+  "collateral_amount_max": 0.025,
   "duration": "30m",
   "max_rate_bps": 500,
   "expires_at": 1779385000
@@ -234,13 +314,13 @@ POST /v1/intent/borrow
 
 ### Matching algorithm
 
-1. **Find compatible pairs:** lender's `asset` == borrower's `principal_asset`, lender's `max_duration` ≥ borrower's `duration`
-2. **Check rate compatibility:** lender's `min_rate_bps` ≤ borrower's `max_rate_bps`
-3. **Compute clearing rate:** `clearing_rate = max(lender_min, agent_sofr_quote)` — borrower never pays less than fair value
-4. **Compute collateral required:** `collateral_required = principal_amount × ltv_ratio / collateral_price`
-5. **Sort pairs:** by `clearing_rate ascending` (best deal first)
+1. **Find compatible pairs:** asset match, duration overlap, rate compatibility
+2. **Compute clearing rate:** `max(lender.min_rate, agent_sofr_quote)`
+3. **Compute required collateral:** `principal / max_safe_ltv(regime, duration, lender.max_default_prob) / collateral_price`
+4. **Verify borrower can provide:** `required_collateral ≤ borrower.collateral_amount_max`
+5. **Sort by clearing rate (ascending)** — best deal first
 6. **Match top pair:** generate EIP-712 signed quote
-7. **Return to both parties:** they have 60s to submit `originate()` call on-chain
+7. **Notify both parties:** 60s to submit `originate()` on-chain
 
 ### Matching engine pseudocode
 
@@ -261,38 +341,39 @@ def match():
             sleep(1)
             continue
         
-        # Sort by clearing rate
-        compatible.sort(key=lambda pair: max(pair[0].min_rate, current_sofr(pair[1].duration)))
+        # Sort by clearing rate (cheapest first)
+        compatible.sort(
+            key=lambda pair: max(pair[0].min_rate, current_sofr(pair[1].duration))
+        )
         
         for lender, borrower in compatible:
+            regime = current_regime()
+            max_ltv = max_safe_ltv(
+                asset=borrower.collateral_asset,
+                duration_sec=duration_to_seconds(borrower.duration),
+                regime=regime,
+                lender_max_default_prob=lender.max_default_prob,
+            )
+            
             clearing_rate = max(lender.min_rate, current_sofr(borrower.duration))
-            collateral_req = borrower.principal_amount * ltv_ratio() / get_price(borrower.collateral_asset)
+            collateral_req = borrower.principal_amount / max_ltv / get_price(borrower.collateral_asset)
             
             if collateral_req > borrower.collateral_amount_max:
-                continue  # not enough collateral offered
+                continue  # not enough collateral offered for this regime
             
-            # Build EIP-712 message
-            quote = {
-                "borrower": borrower.wallet,
-                "lender": lender.wallet,
-                "principal_token": ASSET_ADDRESS[borrower.principal_asset],
-                "principal_amount": borrower.principal_amount * 10**decimals(borrower.principal_asset),
-                "collateral_token": ASSET_ADDRESS[borrower.collateral_asset],
-                "collateral_amount": collateral_req * 10**decimals(borrower.collateral_asset),
-                "expiry_timestamp": now() + duration_seconds(borrower.duration) + buffer,
-                "rate_bps": int(clearing_rate * 100)
-            }
-            
+            # Build EIP-712 quote
+            quote = build_quote(
+                borrower, lender, clearing_rate, collateral_req,
+                duration=borrower.duration,
+                regime=regime,
+            )
             signature = sign_eip712(quote, oracle_private_key)
             
-            # Notify both parties
             notify(lender.wallet, "match_found", quote, signature)
             notify(borrower.wallet, "match_found", quote, signature)
             
-            # Mark intents as matched
             mark_matched(lender, borrower)
-            
-            break  # next iteration finds the next best match
+            break  # next iteration finds next best match
 ```
 
 ---
@@ -301,23 +382,23 @@ def match():
 
 Our own agent (`vrp-agent`) consumes the marketplace it operates:
 
-- When in `DEFENSIVE_CASH` state: auto-submits lender intent (puts capital to work between sessions)
-- When in `LONG_ON_HL` state (entering): could submit borrower intent (leverage entry)
-- When idle on Base side of CCTP bridge: auto-lender for the 60s window
+- **`DEFENSIVE_CASH` state** → auto-submits **lender intent** (puts capital to work between sessions)
+- **Entering session-long mode** → could submit **borrower intent** (leverage entry beyond own capital)
+- **Idle on Base side of CCTP bridge** → auto-lender for the 60-180s window
+- **VRP signal feeds back** → agent's regime classifier informs marketplace pricing
 
-**Our agent is simultaneously the orchestrator AND a market participant.** This is permitted because all formulas are open-source — no conflict of interest, just transparent participation.
-
-This creates **endogenous bootstrap liquidity** — we don't need external lenders to be in the book before launch. Our own agent is the first liquidity provider.
+**Our agent is simultaneously orchestrator AND market participant.** Permitted because all formulas are open-source — no conflict of interest, just transparent participation. This creates **endogenous bootstrap liquidity** — we don't wait for external lenders, we start with our own inventory.
 
 ---
 
 ## Pricing — how we monetize
 
-Five revenue streams, all derived from the same formula:
+Five revenue streams, all derived from the same calibrator:
 
 | Role | Revenue source |
 |------|----------------|
-| **Oracle** | $0.001 per Agent-SOFR query (x402 paid endpoint) |
+| **Oracle (rate)** | $0.001 per Agent-SOFR query |
+| **Oracle (LTV/quote)** | $0.0002 per loan quote |
 | **Matcher** | 5-10 bps take on each matched loan |
 | **Lender** | Spread between fair rate and quoted rate (when our agent is LP) |
 | **Borrower** | Cheap access to capital for our own arb strategies |
@@ -325,17 +406,19 @@ Five revenue streams, all derived from the same formula:
 
 Total expected gross margin at scale (~$1M daily loan volume):
 - Matching fee: 7 bps × $1M = $700/day
-- Oracle queries: 10,000 × $0.001 = $10/day
+- Oracle queries: 50,000 × $0.001 = $50/day
+- Quote endpoint: 10,000 × $0.0002 = $2/day
 - Our LP spread: 20 bps × $100k of own capital = $5/day
-- **Total: ~$715/day at $1M volume, $260k/year**
+- **Total: ~$757/day at $1M volume, $276k/year**
 
-This is the **simplest possible revenue model**. Margins improve as we add credit attestations and insurance fees.
+This is the **simplest possible revenue model**. Margins improve as we add credit attestations, insurance fees, and variance swap products.
 
 ---
 
 ## Roadmap
 
-- **v0.1 (Day 2-3, MVP):** USDC borrow / WETH collateral, single duration bucket, max $50 loan
-- **v0.2 (Day 4+):** Multi-asset support (EURC, ETH), multi-duration
-- **v1.0 (Q1 2026):** Pre-expiry liquidation, partial fills, atomic flash layer
-- **v2.0 (Q2 2026):** ERC-8004 credit-based variable LTV, insurance pool, cross-chain
+- **v0.1 (Day 2-3, MVP):** USDC borrow / WETH collateral, fixed durations, max $50 loan, single regime cap per mode
+- **v0.2 (Day 4+):** Multi-asset support (EURC, ETH borrow), multi-duration, all 3 quote modes
+- **v1.0 (Q1 2026):** Pre-expiry liquidation, partial fills, ERC-8004 credit spreads
+- **v1.5 (Q2 2026):** Insurance pool, variance swap products on top of same calibrator
+- **v2.0 (Q3 2026):** Cross-chain settlement (Base ↔ HyperEVM ↔ Arc), atomic flash layer for sub-block opportunities (only if demand justifies)

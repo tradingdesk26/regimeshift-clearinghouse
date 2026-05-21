@@ -65,27 +65,34 @@
 
 ### Tasks
 
-- [ ] `contracts/InterAgentRepo.sol` — Foundry project
+- [ ] `contracts/InterAgentRepo.sol` — Foundry project (single tier: collateralized term loans, no atomic flash)
   - [ ] State: `loans` mapping (loan_id → terms)
   - [ ] `originate(borrower, lender, principal, collateral, expiry, rate, oracle_sig)` — pull funds, transfer principal, emit event
   - [ ] `repay(loan_id)` — pull principal+interest, release collateral
-  - [ ] `default(loan_id)` — past expiry → release collateral to lender
+  - [ ] `defaultLoan(loan_id)` — past expiry → release collateral to lender
   - [ ] Verify Agent-SOFR oracle signature (EIP-712) on origination
-  - [ ] Foundry tests for all paths (happy, default, partial)
+  - [ ] Foundry tests for all paths (happy, default, expired quote)
 - [ ] Deploy to Base mainnet (deterministic CREATE2 address)
-- [ ] `matcher/intent_book.py` — in-memory order book
-  - [ ] Lender intent: `{address, asset, amount, max_duration, min_rate, expires_at}`
+- [ ] `oracle/quote_engine.py` — three quote modes built on calibrator
+  - [ ] `compute_rate(P, C, T)` — given collateral and duration, output fair rate
+  - [ ] `compute_collateral(P, r, T)` — given rate and duration, output required collateral (numerical inversion)
+  - [ ] `compute_max_duration(P, C, r)` — given collateral and rate, output max safe T
+- [ ] `oracle/max_ltv.py` — max safe LTV function (used by both quote engine and standalone endpoint)
+- [ ] `matcher/intent_book.py` — in-memory order book + SQLite persistence
+  - [ ] Lender intent: `{address, asset, amount, max_duration, min_rate, max_default_prob, expires_at}`
   - [ ] Borrower intent: `{address, principal_asset, principal_amount, collateral_asset, collateral_amount, duration, max_rate, expires_at}`
-  - [ ] Persisted to SQLite
 - [ ] `matcher/matcher.py` — priority queue matcher
   - [ ] Find compatible lender/borrower pairs
-  - [ ] Generate signed EIP-712 quote (server signs as Agent-SOFR oracle)
+  - [ ] Apply lender's `max_default_prob` to compute max LTV per regime
+  - [ ] Generate signed EIP-712 quote
   - [ ] Return ready-to-submit `originate()` call data
 - [ ] API endpoints:
-  - [ ] `POST /v1/intent/lend` — submit lender intent (free, just adds to book)
-  - [ ] `POST /v1/intent/borrow` — submit borrower intent
-  - [ ] `GET /v1/intents/open` — see active intents
-  - [ ] `GET /v1/matches/recent` — see executed matches
+  - [ ] `GET /v1/risk/max-ltv` — paid $0.001 (standalone risk signal)
+  - [ ] `POST /v1/quote` — paid $0.0002 (three-mode quote engine, signed)
+  - [ ] `POST /v1/intent/lend` — free, just adds to book
+  - [ ] `POST /v1/intent/borrow` — free
+  - [ ] `GET /v1/intents/open` — free, see active intents
+  - [ ] `GET /v1/matches/recent` — free, see executed matches
 
 ### Success criteria
 
