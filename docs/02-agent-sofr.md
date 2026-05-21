@@ -4,6 +4,8 @@
 
 A decentralized benchmark rate for short-term borrowing/lending in the agent economy. Inspired by TradFi's SOFR (Secured Overnight Financing Rate) — but published every 60 seconds, sourced from on-chain market data, methodology fully open and IPFS-pinned.
 
+**Production calibration heritage:** Regime classifier and jump-diffusion parameters are inherited from [ARMSHookV3](https://github.com/tradingdesk26/arms) — our Uniswap v4 hook deployed on Base mainnet. Calibrated on 730 days of ETH/USDT 5-minute bars (210,228 observations). We don't ship hand-picked numbers; we ship production-tested ones.
+
 **Three rates published:**
 
 | Endpoint | What it represents |
@@ -75,10 +77,9 @@ Existing rate signals are all flawed for agent use:
 
 ```
 agent_sofr(asset, horizon) =
-    base_anchor(asset)                  # Weighted median of sources above
-  + variance_premium(asset, horizon)    # Derman variance swap, scaled to horizon
-  + jump_premium(asset, horizon)        # Merton jump-diffusion, scaled to horizon
-  + regime_adjustment(asset)            # +0, +20, +50, or +200 bps based on regime
+    base_anchor(asset)                  # Weighted median of market sources
+  + variance_premium(asset, horizon)    # Total variance: continuous + jump
+  + regime_adjustment(asset)            # 6-mode regime ladder, calibrated
 ```
 
 ### Base anchor
@@ -92,59 +93,57 @@ def base_anchor(asset):
 
 Sources fetched live, weights applied, median taken. Median (not mean) so outliers don't move the anchor — a single venue going stale or briefly manipulated cannot dominate.
 
-### Variance premium (Derman)
+### Total variance premium (continuous + jump combined)
 
-For continuous diffusion risk over horizon T:
+We use the **production-tested variance decomposition** from ARMSHookV3 instead of inventing new math:
 
 ```
-variance_premium = DVOL² × T × LTV × P_continuous_default × LGD / T
-                 = DVOL² × LTV × P_continuous_default × LGD
-                 (annualized)
+total_variance_per_bar = cv + λ·j²
+
+  where:
+    cv = continuous variance (Derman-style, 5-min realized variance excluding jumps)
+    j² = jump variance squared (Merton spike component, |r| > p95 threshold)
+    λ  = 1.097  (calibrated jump weight; see arms/src/bench/FeeFormulaV2.sol)
+```
+
+This is the **exact formula deployed on-chain** in our Uniswap v4 hook. `cv` and `j²` are computed live from price data using a rolling 1h window (12 bars) for sub-hour quotes, and 4h window (48 bars) for hourly-and-above.
+
+For an arbitrary horizon T (expressed in 5-min bars):
+
+```
+variance_over_T = (cv + λ·j²) × T
+
+variance_premium(T) = √variance_over_T × LTV × P_default(LTV, σ_T) × LGD × (1 year / T)
+                    (annualized)
 ```
 
 Where:
-- `DVOL` = Deribit Volatility Index (already a Derman variance swap fair strike)
-- `LTV` = loan-to-value ratio at origination (e.g., 80%)
-- `P_continuous_default` = Black-Cox first-passage approximation
-- `LGD` = loss given default = 1 - recovery_rate
+- `P_default` = Black-Cox first-passage probability of LTV breach
+- `LGD` ≈ 1 - 0.95 = 5% (conservative recovery from liquidation slippage)
 
-For ETH at DVOL=50%, LTV=80%, 24h horizon: ≈ 5-10 bps annualized.
+For ETH at LTV=80%:
+- 1h horizon in RESTING regime: ≈ 4 bps annualized
+- 1h horizon in HIGH regime: ≈ 60 bps annualized
+- 24h horizon in EXTREME regime: ≈ 300 bps annualized
 
-### Jump premium (Merton)
+### Regime adjustment (6-mode ladder, production-calibrated)
 
-For Poisson-driven discrete jumps:
+The 6-mode classifier matches our [ARMSHookV3 hook](https://github.com/tradingdesk26/arms/blob/main/src/bench/FeeFormulaV2.sol) deployed on Base mainnet. Calibration source: [`research/round25_calibration.csv`](https://github.com/tradingdesk26/arms/blob/main/research/round25_calibration.csv) — 210,228 ETH/USDT 5-min bars (2024-04-26 → 2026-04-26).
 
-```
-jump_premium = λ × T × E[J²] × LTV × LGD / T
-             = λ × E[J²] × LTV × LGD
-             (annualized)
+| Mode | σ_5min boundary | Time-share | Risk premium |
+|------|-----------------|-----------|--------------|
+| **RESTING** | < 14.2 bp | 46.4% | +0 bps |
+| **LOW** | 14.2 – 17.8 bp | 15.6% | +5 bps |
+| **NORMAL** | 17.8 – 23.3 bp | 16.0% | +15 bps |
+| **ELEVATED** | 23.3 – 34.4 bp | 14.3% | +30 bps |
+| **HIGH** | 34.4 – 62.9 bp | 6.7% | +60 bps |
+| **EXTREME** | > 62.9 bp | 1.1% | +200 bps |
 
-where E[J²] = (α² + δ²) for J ~ lognormal(α, δ)
-```
+**Hysteresis:** Up-transitions are instant (shocks priced immediately, no lag). Down-transitions require σ to fall 10% below the boundary (`eps_down = 0.10`). This cuts mode-changes per day from 33.7 (naive) to 24.1 (-30%) while preserving 100% of HIGH/EXTREME shock-coverage. Source: [`research/cooldown_matrix.py`](https://github.com/tradingdesk26/arms/blob/main/research/cooldown_matrix.py).
 
-Calibrated from 90-day jump history per asset:
+**Premium curve rationale:** Mirrors RegimeCaps.sol retail fee escalation (0.9 / 5 / 20 / 60 / 120 / 250 bp), scaled down to 24h loan horizons. The exponential shape (not linear) reflects empirical jump distribution — HIGH and EXTREME modes have much larger expected losses than linear extrapolation suggests.
 
-| Asset | λ (jumps/year) | α (mean) | δ (vol) |
-|-------|----------------|----------|---------|
-| ETH   | ~40            | -0.01    | 0.04    |
-| BTC   | ~30            | -0.008   | 0.035   |
-| EUR/USD | ~5           | 0        | 0.01    |
-| USD/USD | ~0           | 0        | 0       |
-
-For ETH at LTV=80%: ≈ 30-50 bps annualized over short horizons (jumps dominate at small T).
-
-### Regime adjustment
-
-Imports from existing `regimeshift-fx/regime_classifier`:
-
-| Regime | Premium |
-|--------|---------|
-| LOW    | +0 bps  |
-| MID    | +20 bps |
-| HIGH   | +50 bps |
-| EXTREME| +200 bps|
-
-When regime classifier flags HIGH or EXTREME, all rates spike — protecting lenders during volatile periods. When LOW, rates compress — encouraging utilization.
+**Asset extension:** ETH thresholds are authoritative. For BTC, we scale by historical volatility ratio (BTC ≈ 0.85× ETH RV). For EUR/USD (pegged stablecoin pair), we use Aave-derived thresholds with ETH-relative scaling (≈ 0.05× ETH). Re-calibration per asset is roadmap (v2).
 
 ---
 
@@ -162,12 +161,11 @@ When regime classifier flags HIGH or EXTREME, all rates spike — protecting len
   "ok": true,
   "asset": "USD",
   "horizon": "1h",
-  "rate": 4.07,
+  "rate": 4.12,
   "decomposition": {
     "base_anchor": 3.95,
-    "variance_premium": 0.04,
-    "jump_premium": 0.03,
-    "regime_adjustment": 0.05
+    "variance_premium": 0.02,
+    "regime_adjustment": 0.15
   },
   "sources": {
     "deribit_pcp_30d": 3.95,
@@ -189,11 +187,30 @@ When regime classifier flags HIGH or EXTREME, all rates spike — protecting len
     "aave_borrow_weth": 0.05,
     "sofr_30d": 0.10
   },
-  "regime": "MID",
+  "regime": {
+    "mode": "NORMAL",
+    "mode_index": 2,
+    "sigma_5min_bp": 19.8,
+    "thresholds_bp": {
+      "p50": 14.2,
+      "p65": 17.8,
+      "p80": 23.3,
+      "p93": 34.4,
+      "p99": 62.9
+    }
+  },
+  "variance": {
+    "cv_per_bar": 1.85e-6,
+    "j2_per_bar": 3.21e-7,
+    "lambda": 1.097,
+    "total_per_bar": 2.20e-6
+  },
   "methodology": {
     "url": "https://regimeshift.xyz/methodology/agent-sofr-v1",
     "ipfs": "QmXXX...",
-    "hash": "0xYYY..."
+    "hash": "0xYYY...",
+    "calibration_source": "arms/research/round25_calibration.csv",
+    "calibration_data": "210228 ETH/USDT 5-min bars (2024-04-26 → 2026-04-26)"
   },
   "computed_at": 1779380000,
   "valid_until": 1779380060,
@@ -233,6 +250,20 @@ If we change weighting, add a source, or update the regime classifier, we bump t
 
 **Trust through immutable transparency.** Any agent that paid for a rate at time T can verify exactly which formula produced it.
 
+### Calibration provenance
+
+Each methodology version cites its **calibration provenance** — what data was used to produce the constants in the formula:
+
+| Constant | Value | Source | Calibration period |
+|----------|-------|--------|-------------------|
+| σ thresholds (p50/p65/p80/p93/p99) | 14.2 / 17.8 / 23.3 / 34.4 / 62.9 bp | `arms/research/percentile_grid.py` | 2024-04-26 → 2026-04-26 (730d, 210k bars) |
+| λ (jump weight) | 1.097 | `arms/research/round25_calibration.csv` | Same as above |
+| Hysteresis ε_down | 0.10 (10%) | `arms/research/cooldown_matrix.py` | Same — optimized for naive→hysteresis mode-change rate reduction |
+| Regime premium (RESTING/LOW/.../EXTREME) | 0 / 5 / 15 / 30 / 60 / 200 bps | Derived from RegimeCaps.sol fee schedule, scaled to loan horizons | Production hook live since 2026-04 |
+| Source weights | 70/20/10 (market/reference/macro) | This document | First defined in v1 (2026-05-21) |
+
+When we update any of these, the methodology version bumps. Old API responses remain verifiable against their original methodology hash.
+
 ---
 
 ## Why this is hard to manipulate
@@ -255,7 +286,24 @@ For comparison, manipulating Aave USDC borrow rate by similar amount = one succe
 
 ## Roadmap
 
-- **v1 (Day 1):** Initial launch with current source list, fixed weights, regime adjustment
-- **v2 (post-hackathon):** Dynamic weights based on source liquidity (Kelly-style optimal)
+- **v1 (Day 1):** Initial launch with current source list, fixed weights, 6-mode regime adjustment inherited from production ARMSHookV3
+- **v1.1 (Day 3-4):** Add per-asset calibration for BTC, EUR (currently using ETH-scaled defaults)
+- **v2 (post-hackathon):** Dynamic source weights based on observed liquidity / spread (Kelly-style optimal)
+- **v2.1:** Continuous re-calibration of σ thresholds — rolling 730d window with monthly recompute
 - **v3 (Q1 2026):** ZK proofs of correct computation (zk-circuits over the aggregation logic)
 - **v4 (Q2 2026):** Multi-region Agent-SOFR (JPY, GBP, USDT-anchored variants)
+
+---
+
+## Reference implementations
+
+The math is not new — what's new is the *agent-native distribution* of it. References:
+
+- **Variance + jump decomposition (cv + λ·j²):** Deployed in [`ARMSHookV3.sol`](https://github.com/tradingdesk26/arms/blob/main/src/bench/ARMSHookV3.sol) (Base mainnet, live since 2026-04)
+- **6-mode classifier with hysteresis:** [`FeeFormulaV2.classifyModeHyst`](https://github.com/tradingdesk26/arms/blob/main/src/bench/FeeFormulaV2.sol)
+- **σ threshold calibration:** [`research/percentile_grid.py`](https://github.com/tradingdesk26/arms/blob/main/research/percentile_grid.py)
+- **Hysteresis tuning:** [`research/cooldown_matrix.py`](https://github.com/tradingdesk26/arms/blob/main/research/cooldown_matrix.py)
+- **Volatility calibration scripts:** [`research/vol_calibration.py`](https://github.com/tradingdesk26/arms/blob/main/research/vol_calibration.py)
+- **Calibration CSV:** [`research/round25_calibration.csv`](https://github.com/tradingdesk26/arms/blob/main/research/round25_calibration.csv)
+
+**The hackathon contribution is not the math — it's wrapping production-tested math behind a paid x402 oracle and using it to price the agent-to-agent repo market.**

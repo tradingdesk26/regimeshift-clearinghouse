@@ -18,14 +18,24 @@
 
 ### Tasks
 
-- [ ] `oracle/agent_sofr.py` — multi-source rate aggregator
-  - [ ] Fetch live rates from: Deribit options PCP, Deribit futures basis, Hyperliquid perp funding, Aevo PCP, Aave Base USDC/WETH, SOFR reference
-  - [ ] Weighted median anchor (market-derived 80%, governance reference 20%)
+- [ ] `oracle/calibration.py` — copy calibrated constants from `arms/research/round25_calibration.csv`
+  - [ ] σ thresholds (p50/p65/p80/p93/p99) in bp + wad
+  - [ ] λ = 1.097 (jump weight from FeeFormulaV2)
+  - [ ] Regime premium table (6 modes)
+  - [ ] Hysteresis epsilon = 0.10
+- [ ] `oracle/regime_classifier.py` — port `FeeFormulaV2.classifyModeHyst` to Python
+  - [ ] 6-mode classifier with 10% down-hysteresis
+  - [ ] State persistence (last_mode) for hysteresis to work across calls
+- [ ] `oracle/variance_engine.py` — compute cv + j² from live price data
+  - [ ] Continuous variance (cv) — rolling realized variance excluding jumps
+  - [ ] Jump variance (j²) — bars where |r| > p95, squared
+  - [ ] Use `arms/research/ethusdt_5m.parquet` as reference dataset for ETH
+- [ ] `oracle/rate_aggregator.py` — multi-source rate aggregator
+  - [ ] Fetch live rates: Deribit options PCP, Deribit futures basis, Hyperliquid perp funding, Aevo PCP, Aave Base USDC/WETH, Compound, SOFR reference
+  - [ ] Weighted median anchor (market-derived 70%, governance reference 20%, macro 10%)
   - [ ] Cache layer (60s TTL — same as VRP endpoint)
-- [ ] `oracle/jump_diffusion.py` — Merton jump premium calculator
-  - [ ] Calibrate λ, α, δ from 90-day historical price jumps (per asset)
-  - [ ] Compute premium for given horizon Δt
-- [ ] `oracle/regime.py` — copy regime classifier from vrp-agent (or import as library)
+- [ ] `oracle/agent_sofr.py` — main entry point combining the above
+  - [ ] Compose: base_anchor + variance_premium + regime_adjustment
 - [ ] Wire into `arms-signals/app.py` as new routes:
   - [ ] `GET /v1/rate/sofr/usd?horizon=1h` — $0.001
   - [ ] `GET /v1/rate/sofr/eur?horizon=1h` — $0.001
