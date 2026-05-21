@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+.python-version
+
+# Env files (NEVER commit private keys)
+.env
+.env.*
+.burner.env
+*.env.local
+
+# Foundry / Solidity
+cache/
+out/
+broadcast/
+forge-cache/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+*.log
+logs/
+server.log
+
+# Local data
+data/
+*.sqlite
+*.db
+tmp/
+
+# Build artifacts
+dist/
+build/
+node_modules/
+
+# IPFS pinning artifacts
+.ipfs/
