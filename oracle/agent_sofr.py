@@ -32,7 +32,7 @@ from oracle.calibration import (
 from oracle.rate_aggregator import aggregate_rates, AggregatedRate
 from oracle.variance_engine import (
     VarianceSnapshot, compute_variance_from_returns,
-    load_reference_ethusdt_returns,
+    load_reference_ethusdt_returns, fetch_live_eth_returns,
 )
 from oracle.regime_classifier import RegimeClassifier, ClassificationResult
 from oracle.max_ltv import max_safe_ltv, MaxLTVResult
@@ -245,9 +245,12 @@ def compute_agent_sofr(
         if now - cached_ts < CACHE_TTL_SEC:
             return cached
 
-    # Step 1 — Variance from reference data (ETH proxy for USD rate calc)
-    # NOTE Day 2: replace with live Deribit price feed
-    returns, timestamps = load_reference_ethusdt_returns(n_recent_bars=24)
+    # Step 1 — Variance from ETH 5-min bars (live Binance) with parquet fallback
+    try:
+        returns, timestamps = fetch_live_eth_returns(n_bars=24)
+    except Exception:
+        # Fall back to local reference if live fetch fails
+        returns, timestamps = load_reference_ethusdt_returns(n_recent_bars=24)
     variance = compute_variance_from_returns(returns, timestamp=timestamps[-1])
 
     # Step 2 — Regime classification (uses σ_5min)
@@ -350,7 +353,10 @@ def compute_max_ltv_for_loan(
         # Day 1: ETH-collateralized loans only (USD is the principal anchor)
         raise NotImplementedError(f"Day 1 supports ETH collateral only. Got: {asset!r}")
 
-    returns, timestamps = load_reference_ethusdt_returns(n_recent_bars=24)
+    try:
+        returns, timestamps = fetch_live_eth_returns(n_bars=24)
+    except Exception:
+        returns, timestamps = load_reference_ethusdt_returns(n_recent_bars=24)
     variance = compute_variance_from_returns(returns, timestamp=timestamps[-1])
 
     clf = get_regime_classifier()

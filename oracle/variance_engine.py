@@ -207,7 +207,56 @@ class VarianceEngine:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Live data fetcher — Binance public klines (no auth needed, no pandas needed)
+# ─────────────────────────────────────────────────────────────────────────────
+
+import json
+import urllib.request
+
+
+def fetch_live_eth_returns(
+    n_bars: int = 24,
+    symbol: str = "ETHUSDT",
+    interval: str = "5m",
+) -> tuple[np.ndarray, list[int]]:
+    """
+    Fetch the last N 5-min closes from Binance public klines API.
+
+    Returns (returns, timestamps) — same as the parquet loader, suitable
+    for direct feed into compute_variance_from_returns.
+
+    Args:
+        n_bars: number of return observations needed (will fetch n_bars+1 candles)
+        symbol: trading pair (default ETHUSDT)
+        interval: kline interval (default 5m)
+
+    Returns:
+        (returns_array, timestamps_unix)
+    """
+    url = (
+        f"https://api.binance.com/api/v3/klines"
+        f"?symbol={symbol}&interval={interval}&limit={n_bars + 1}"
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": "agent-sofr/0.1"})
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        data = json.loads(resp.read().decode())
+
+    # Binance kline format: [open_time_ms, open, high, low, close, ...]
+    closes = np.array([float(row[4]) for row in data])
+    open_times_ms = [int(row[0]) for row in data]
+
+    if len(closes) < 2:
+        raise RuntimeError(f"fetched only {len(closes)} candles, need >=2")
+
+    returns = returns_from_prices(closes)
+    # Timestamp for return[i] = open_time of bar[i+1] (closing observation epoch)
+    timestamps = [open_times_ms[i + 1] // 1000 for i in range(len(returns))]
+    return returns, timestamps
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Reference data loader — for replay tests using arms/research/ethusdt_5m.parquet
+# Local dev only. Production uses fetch_live_eth_returns().
 # ─────────────────────────────────────────────────────────────────────────────
 
 ARMS_REFERENCE_PARQUET = Path("/Users/dz/arms/research/ethusdt_5m.parquet")
@@ -219,29 +268,21 @@ def load_reference_ethusdt_returns(
     """
     Load ETH/USDT 5-min returns from arms research dataset.
 
-    Args:
-        n_recent_bars: if set, return only the N most recent bars
-
-    Returns:
-        (returns_array, timestamps_unix) — same length, log returns + epoch seconds.
-
-    Raises:
-        FileNotFoundError: if the parquet file isn't available.
+    Raises FileNotFoundError if parquet missing — fall back to fetch_live_eth_returns().
     """
     if not ARMS_REFERENCE_PARQUET.exists():
         raise FileNotFoundError(
             f"Reference dataset not found at {ARMS_REFERENCE_PARQUET}. "
-            "This loader is intended for replay tests on local dev machines."
+            "Use fetch_live_eth_returns() in production."
         )
 
-    import pandas as pd
+    import pandas as pd  # type: ignore[import-untyped]
     df = pd.read_parquet(ARMS_REFERENCE_PARQUET)
     if n_recent_bars is not None:
-        df = df.tail(n_recent_bars + 1)  # +1 for the diff
+        df = df.tail(n_recent_bars + 1)
 
     prices = df["close"].values
     returns = returns_from_prices(prices)
-    # Timestamps for return[i] = timestamp of bar[i+1] (the closing observation)
     timestamps = (df.index[1:].astype(np.int64) // 1_000_000_000).tolist()
     return returns, timestamps
 
@@ -251,6 +292,7 @@ __all__ = [
     "VarianceEngine",
     "compute_variance_from_returns",
     "returns_from_prices",
+    "fetch_live_eth_returns",
     "load_reference_ethusdt_returns",
     "DEFAULT_SPIKE_PERCENTILE",
 ]
