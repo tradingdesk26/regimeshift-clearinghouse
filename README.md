@@ -18,13 +18,15 @@ Built for the [Agora Agents Hackathon](https://thecanteenapp.com/) under [RFB 04
 | **Custom Uniswap v4 hook** (ARMSHookV3) | ✅ Live, ~1.5× TVL in first 14h |
 | **Agent-SOFR Oracle** (`/v1/rate/sofr/usd`) | ✅ Live, paid + on-chain validated |
 | **Max-LTV risk endpoint** (`/v1/risk/max-ltv`) | ✅ Live, paid + on-chain validated |
-| **InterAgentRepo V1** escrow (MVP demo) | ✅ Deployed [`0xaea1...7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) — Foundry 10/10 tests pass |
-| **InterAgentRepo V2** escrow (Chainlink liquidation) | ✅ Deployed [`0x2bfE...11E4`](https://basescan.org/address/0x2bfE0f1142B04049d867389Bf91A84e498ED11E4) — superseded after audit, kept live for reference |
-| **InterAgentRepo V3** escrow (audit-patched, active) | ✅ Deployed [`0xFfca...2945`](https://basescan.org/address/0xFfca5d80c3413Bd5D17971550cCD615f57f22945) — 4 HIGH + 2 LOW fixes from audit round 1, Foundry 15/15 tests pass. See [`audit/round1.md`](audit/round1.md). |
-| **Audit round-1 fixes** | ✅ All HIGH addressed in V3: initial LTV check, min duration, rate ceiling, Aave-style default split |
-| **Chainlink ETH/USD oracle integration** | ✅ Live in V2+V3 with `answeredInRound` defense |
-| **Pausable mixin (emergency halt)** | ✅ Live in V3 only — `emergencyPause()` / `emergencyUnpause()` |
-| **Liquidator bounty + insurance pool** | ✅ Live in V2+V3 — 3% bounty, 1% insurance |
+| **InterAgentRepo V1** escrow (MVP demo) | ✅ Deployed [`0xaea1...7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) |
+| **InterAgentRepo V2** escrow (Chainlink liquidation) | 🪦 Deployed [`0x2bfE...11E4`](https://basescan.org/address/0x2bfE0f1142B04049d867389Bf91A84e498ED11E4) — **RETIRED** per R2-#3 (oracleSigner=0x...dEaD) |
+| **InterAgentRepo V3** escrow (audit R1 patched) | 🪦 Deployed [`0xFfca...2945`](https://basescan.org/address/0xFfca5d80c3413Bd5D17971550cCD615f57f22945) — superseded by V4 after R2-#2 found |
+| **InterAgentRepo V4** escrow (audit R1+R2 patched, ACTIVE) | ✅ Deployed [`0x9d3b...b31c`](https://basescan.org/address/0x9d3b61d13a839968ffad94a0eedf73153c2fb31c) — all HIGH + LOW + R2-#2 fixed, Foundry 8/8 + V3's 15/15 tests pass. See [`audit/round1.md`](audit/round1.md), [`audit/round2.md`](audit/round2.md). |
+| **Audit round-1 fixes** (V3 onwards) | ✅ All HIGH addressed: initial LTV check, min duration, rate ceiling, Aave-style default split |
+| **Audit round-2 fixes** (V4) | ✅ R2-#2: `whenNotPaused` removed from `repay()` (pause blocks entry, not exit). R2-#3: V2 retired via oracle rotation. R2-#1: acknowledged as systemic DeFi risk (aligned with Aave/Compound/Morpho). |
+| **Chainlink ETH/USD oracle integration** | ✅ Live in V2+V3+V4 with `answeredInRound` defense |
+| **Pausable mixin (emergency halt)** | ✅ Live in V3+V4 — `emergencyPause()` / `emergencyUnpause()` |
+| **Liquidator bounty + insurance pool** | ✅ Live in V2+V3+V4 — 3% bounty, 1% insurance |
 | **Off-chain matching engine** | ✅ Live, end-to-end validated |
 | **Intent submission APIs** (`/v1/intent/*`) | ✅ Live, free (settlement on-chain) |
 | **Liquidation monitoring** (`/v1/liquidatable-loans`, `/v1/active-loans`) | ✅ Live |
@@ -90,10 +92,13 @@ Detailed in [`docs/02-agent-sofr.md`](docs/02-agent-sofr.md) and [`docs/03-clear
 |----------|-------------|
 | **InterAgentRepo V1** (MVP demo) | [`0xaea176DDa786c8B14802f92385749C7Cdf6C7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) |
 | **InterAgentRepo V2** (Chainlink liquidation, superseded) | [`0x2bfE0f1142B04049d867389Bf91A84e498ED11E4`](https://basescan.org/address/0x2bfE0f1142B04049d867389Bf91A84e498ED11E4) |
-| **InterAgentRepo V3** (audit round-1 patched — ACTIVE) | [`0xFfca5d80c3413Bd5D17971550cCD615f57f22945`](https://basescan.org/address/0xFfca5d80c3413Bd5D17971550cCD615f57f22945) |
+| **InterAgentRepo V3** (audit R1 patched, superseded) | [`0xFfca5d80c3413Bd5D17971550cCD615f57f22945`](https://basescan.org/address/0xFfca5d80c3413Bd5D17971550cCD615f57f22945) |
+| **InterAgentRepo V4** (audit R1+R2 patched — ACTIVE) | [`0x9d3b61d13a839968ffad94a0eedf73153c2fb31c`](https://basescan.org/address/0x9d3b61d13a839968ffad94a0eedf73153c2fb31c) |
 | V1 contract deploy | [`0xf2344c9c...ba2698`](https://basescan.org/tx/0xf2344c9cd8a90c9371d990cc8420bbf839ac14fb9fb099f8c5465f0354ba2698) |
 | V2 contract deploy | [`0xad3fdca2...3e9bab0a`](https://basescan.org/tx/0xad3fdca2013de1a995dd3bc5778d539d6e443feec07aaff149eb291b3e9bab0a) |
+| V2 retirement (oracle → 0x...dEaD) | [`0x889a4608...09b37ba`](https://basescan.org/tx/0x889a460824d949a119d37c53e14163db12998f640dd75b4a51e3c9e5809b37ba) |
 | V3 contract deploy | [`0x2ac8943a...da186a7`](https://basescan.org/tx/0x2ac8943ad54821ecdfe647da185cfe7e65c6812b512c54ddedbd7267ada186a7) |
+| V4 contract deploy | [`0xf7376511...5b3af09`](https://basescan.org/tx/0xf7376511cbbba7a2da057bd046c1153e6566ef7d3d6462decdb8183b15b3af09) |
 | Chainlink ETH/USD feed (Base) | [`0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70`](https://basescan.org/address/0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70) |
 | ETH VRP — first organic paid call | [`0x1a7fa538...96820f6`](https://basescan.org/tx/0x1a7fa5389aa1dea89af95f553ab8170d6e3f688910c872d81e47dcad896820f6) |
 | BTC VRP — self-validated paid call | [`0x04a37d60...c8aad`](https://basescan.org/tx/0x04a37d60c37c50830971837b531f7daf6b6ce77adca6f9ccf3d824880cdc8aad) |
