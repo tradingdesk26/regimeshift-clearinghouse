@@ -84,14 +84,14 @@ Aave V3 statically sets WETH collateral LTV to **80%**, calibrated for the worst
 
 | Regime | Time-share | σ_5min | Our max LTV | Aave (static) | Capital efficiency gain |
 |--------|-----------|--------|-------------|---------------|-------------------------|
-| RESTING | 46% | <14 bp | **98%** | 80% | **+18%** |
-| LOW | 16% | 17 bp | **96%** | 80% | **+16%** |
-| NORMAL | 16% | 20 bp | **92%** | 80% | **+12%** |
-| ELEVATED | 14% | 28 bp | **85%** | 80% | **+5%** |
-| HIGH | 7% | 45 bp | **75%** | 80% | **−5%** (safer for lenders) |
-| EXTREME | 1% | 80+ bp | **60%** or pause | 80% | **−20%** (safer for lenders) |
+| RESTING | 46% | <14 bp | **92%** | 80% | **+12%** |
+| LOW | 16% | 17 bp | **90%** | 80% | **+10%** |
+| NORMAL | 16% | 20 bp | **85%** | 80% | **+5%** |
+| ELEVATED | 14% | 28 bp | **80%** | 80% | **0%** (matched Aave cap) |
+| HIGH | 7% | 45 bp | **70%** | 80% | **−10%** (safer for lenders) |
+| EXTREME | 1% | 80+ bp | **55%** or pause | 80% | **−25%** (safer for lenders) |
 
-**Weighted average: ~12% capital efficiency gain in calm markets + better lender protection in shocks.**
+**Weighted average: ~8% capital efficiency gain in calm markets + materially better lender protection in shocks.** Caps lowered from initial v1 values after audit round 1 (3% buffer below contract liquidation threshold).
 
 ### Numerical example
 
@@ -99,12 +99,12 @@ For a $1,000 USDC loan over 1 hour:
 
 | Regime | Aave required collateral | Our required collateral | Borrower frees up |
 |--------|--------------------------|-------------------------|-------------------|
-| RESTING | $1,250 (LTV 80%) | $1,020 (LTV 98%) | **$230 in liquid capital** |
-| NORMAL | $1,250 | $1,087 (LTV 92%) | **$163** |
-| HIGH | $1,250 | $1,333 (LTV 75%) | (lender protected from default cascade) |
-| EXTREME | $1,250 | $1,667 or paused | (matching halted to prevent bad debt) |
+| RESTING | $1,250 (LTV 80%) | $1,087 (LTV 92%) | **$163 in liquid capital** |
+| NORMAL | $1,250 | $1,177 (LTV 85%) | **$73** |
+| HIGH | $1,250 | $1,429 (LTV 70%) | (lender protected from default cascade) |
+| EXTREME | $1,250 | $1,818 or paused | (matching halted to prevent bad debt) |
 
-In RESTING + LOW + NORMAL (78% of time) borrowers save 12-23% of collateral that's locked up under Aave's static model. **This freed capital becomes liquidity in our pool**, compounding the efficiency.
+In RESTING + LOW + NORMAL (78% of time) borrowers save 6-13% of collateral that's locked up under Aave's static model. **This freed capital becomes liquidity in our pool**, compounding the efficiency.
 
 ### Why Aave can't do this
 
@@ -251,12 +251,15 @@ def max_safe_ltv(
 
 
 REGIME_MAX_LTV = {
-    "RESTING":  0.98,
-    "LOW":      0.96,
-    "NORMAL":   0.92,
-    "ELEVATED": 0.85,
-    "HIGH":     0.75,
-    "EXTREME":  0.60,  # or pause matching entirely
+    # Audit round-1 enforced 3% buffer below contract liquidation threshold
+    # (95% contract threshold − 2% origination buffer = 93% absolute cap;
+    # we set caps a further 1-2% below to give matching engine wiggle room).
+    "RESTING":  0.92,   # was 0.98 — still way more efficient than Aave 80%
+    "LOW":      0.90,   # was 0.96
+    "NORMAL":   0.85,   # was 0.92
+    "ELEVATED": 0.80,   # was 0.85 — matches Aave static cap
+    "HIGH":     0.70,   # was 0.75 — 10% safer than Aave in stress
+    "EXTREME":  0.55,   # was 0.60 — matching paused entirely in EXTREME anyway
 }
 ```
 
@@ -271,23 +274,36 @@ REGIME_MAX_LTV = {
   - Max loan size $50 (capped via `require(principal_amount < 50e6)`)
   - No pre-expiry liquidation (collateral claimable only on default)
 
-### Liquidation mechanism (V2 — deployed)
+### Liquidation mechanism (V4 — active)
 
-V2 of the contract ([`0x2bfE0f1142B04049d867389Bf91A84e498ED11E4`](https://basescan.org/address/0x2bfE0f1142B04049d867389Bf91A84e498ED11E4)) adds pre-expiry liquidation. V1 (`0xaea1...7400`) stays live as the MVP-no-liquidation demonstration.
+The current production contract is **V4** ([`0x9d3b61d13a839968ffad94a0eedf73153c2fb31c`](https://basescan.org/address/0x9d3b61d13a839968ffad94a0eedf73153c2fb31c)) after three audit rounds. V1 stays live as the MVP-no-liquidation reference; V2 and V3 are retired (oracleSigner rotated to `0x...dEaD`).
 
-| Mechanism | V1 (`0xaea1...7400`) | V2 (`0x2bfE...11E4`) |
-|-----------|---------------------|---------------------|
+| Contract | Status | Address |
+|----------|--------|---------|
+| **V4** | **ACTIVE** (production, post 3-round audit) | `0x9d3b...b31c` |
+| V3 | Retired after R3 cleanup | `0xFfca...2945` |
+| V2 | Retired after R2 (`whenNotPaused` on repay = griefing vector) | `0x2bfE...11E4` |
+| V1 | Demo reference (no liquidation) | `0xaea1...7400` |
+
+| Mechanism | V1 (demo) | V4 (active) |
+|-----------|-----------|-------------|
 | Expiry default | ✅ `defaultLoan()` | ✅ kept |
 | Pre-expiry liquidation | ❌ None | ✅ `liquidate()` with Chainlink ETH/USD |
 | LTV threshold | N/A | 95% — current_ltv_bps ≥ 9500 triggers liquidation |
+| Initial LTV cap (on-chain) | N/A | **93%** — origination reverts above this (R1-#1) |
+| Min loan duration | N/A | **120s** — origination reverts below this (R1-#2) |
+| Rate cap | N/A | sanity ceiling enforced on-chain (R1-#3) |
+| Default split | Collateral → lender | **Aave-style** (R1-#4): 3% bounty / 1% insurance / debt-equiv to lender / excess refund to borrower |
 | Liquidator bounty | N/A | **3%** of collateral to msg.sender |
 | Insurance pool fee | N/A | **1%** of collateral accrues to insurance pool |
 | Grace period (anti-flash) | N/A | **60 seconds** after origination |
 | Price feed staleness limit | N/A | **1 hour** (Chainlink heartbeat) |
-| LTV cap by regime | ✅ Static (RESTING 98% → HIGH 75%) | ✅ Same caps applied off-chain at origination |
+| Repay path pausability | N/A | **NOT pausable** (R2-#2): owner cannot force borrower into default |
+| LTV cap by regime | ✅ Static (RESTING 92% → HIGH 70%) | ✅ Same caps applied off-chain at origination |
 | Matching pause | ✅ in EXTREME regime | ✅ Same |
 | `currentLTV(loanId)` view | ❌ | ✅ Returns (ltv_bps, eth_price, liquidatable_bool) |
 | Asset whitelist | All | USDC principal + WETH collateral (multi-asset is v2.0+) |
+| EIP-712 domain | `("InterAgentRepo", "1")` | `("InterAgentRepo", "4")` — non-replayable across versions |
 
 #### How liquidation works in V2
 

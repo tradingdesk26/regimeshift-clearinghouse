@@ -42,16 +42,17 @@ EUR + ETH variants deferred to v1.1.
   - [x] Continuous variance (cv) excluding p95 jumps
   - [x] Jump variance (j²) for above-threshold bars
   - [x] `fetch_live_eth_returns()` — pulls last N 5-min closes from Binance
-- [x] `oracle/rate_aggregator.py` — 8-source weighted median
+- [x] `oracle/rate_aggregator.py` — 8-source weighted median *(reduced to 7 in v1.0.1; see Changelog)*
   - [x] Deribit options PCP (30d), Deribit futures basis (3m), Hyperliquid perp funding,
         Aevo options PCP, Aave V3 Base USDC + WETH borrow, SOFR 30d (Compound TODO)
-  - [x] Weighted median anchor (market-derived 70%, governance reference 20%, macro 10%)
+        — `aave_borrow_weth` removed in v1.0.1 (WETH is ETH lending market, not USDC short rate)
+  - [x] Weighted median anchor (market-derived 75%, reference 15%, macro 10%)
   - [x] 60s TTL cache
 - [x] `oracle/max_ltv.py` — math max LTV + regime cap, Black-Cox first-passage
 - [x] `oracle/agent_sofr.py` — composition entry point
 - [x] Wire into `arms-signals/app.py` as new routes:
-  - [x] `GET /v1/rate/sofr/usd?horizon=1h` — $0.001
-  - [x] `GET /v1/risk/max-ltv?asset=ETH&...` — $0.001
+  - [x] `GET /v1/rate/sofr/usd?horizon=1h` — initially $0.001, **bumped to $0.10 (Messari Enterprise tier) post-launch**
+  - [x] `GET /v1/risk/max-ltv?asset=ETH&...` — initially $0.001, **bumped to $0.005 post-launch**
 - [x] Bazaar discovery extension for both
 - [x] Deploy to VM, restart systemd
 - [x] Self-validate with burner wallet
@@ -102,7 +103,7 @@ First real on-chain loan deferred to Day 3.
   - [x] Applies lender's `max_default_prob` for LTV
   - [x] Generates signed EIP-712 quote on match
 - [x] API endpoints in arms-signals:
-  - [x] `GET /v1/risk/max-ltv` — paid $0.001
+  - [x] `GET /v1/risk/max-ltv` — paid (initially $0.001, now $0.005)
   - [x] `POST /v1/intent/lend` — free
   - [x] `POST /v1/intent/borrow` — free, auto-fires matcher
   - [x] `GET /v1/intents/open` — free
@@ -122,23 +123,27 @@ First real on-chain loan deferred to Day 3.
 
 ---
 
-## Day 3 — 2026-05-23 — Dashboard, real demo loan, methodology page
+## Day 3 — 2026-05-22 — Audit remediation, demo loan, landing terminal
 
-**Deliverable: Dashboard shows live intents + matches. Real $5-10 loan executes between agent wallet and burner wallet. Methodology pages live and IPFS-pinned.**
+**Delivered: Three audit rounds completed (10 → 3 → 1 → 0 findings); V4 deployed and active; V2 + V3 retired. First live demo loan executed end-to-end on Base mainnet. Bloomberg-style landing live at regimeshift.xyz.**
 
 ### Tasks
 
-- [ ] Dashboard panel "Live Intents" on `regimeshift.xyz`
+- [x] **Audit rounds 1-3 remediation** — V4 deployed at `0x9d3b61d13a839968ffad94a0eedf73153c2fb31c`, V2 + V3 retired (oracleSigner rotated to `0x...dEaD`)
+  - [x] R1: initial LTV cap (93%), min duration (120s), rate cap, Aave-style default split
+  - [x] R2: `whenNotPaused` removed from `repay()` so owner can't grief borrower
+  - [x] R3: V3 retirement cleanup pass
+- [x] **Match notifications** — both variants shipped (webhook push + long-poll `GET /v1/intent/{id}/match?wait=N`)
+- [x] **Bloomberg-style landing** at `regimeshift.xyz` — ticker, paid-call metrics, sparklines, TX rate, HOT ENDPOINT, match-notifications section. VRP trading dashboard moved to `/v1`.
+- [x] **First live demo loan** executed on V4 — `$0.50` USDC / `0.0005` WETH / 300s / 480 bps / RESTING:
+  - originate(): `0xdf8967ce5ce8dd61d60b4736cfdc9c6d7de86450d0a3c59c02b80070f68e639b`
+  - repay():    `0xb1b14009eff0bfbcbc919176078151932df7b7edfa06b0fd780e1f089fc5ed59`
+  - match_id: `match_b74ab408985c6581`, loan_id: `0xd3ad2b133f18198a091222373d57c10e119c32cb98553749dcdf27ec81552e95`
+- [ ] Dashboard panel "Live Intents" on `regimeshift.xyz` (deferred — landing terminal is sufficient for submission)
   - [ ] Show open lender intents (asset, amount, rate)
   - [ ] Show open borrower intents
   - [ ] Show recent matches with tx hash links to BaseScan
-  - [ ] Auto-refresh every 10s
-- [ ] Demo loan choreography:
-  - [ ] Burner wallet (existing 0x3d6...) submits lender intent (lend $5 USDC, max duration 1h)
-  - [ ] Second burner wallet (fund $1 WETH as collateral) submits borrower intent (borrow $5 USDC against WETH for 30min)
-  - [ ] Matcher pairs them, generates signed quote
-  - [ ] Originate transaction submitted on-chain
-  - [ ] After 30min: borrower repays (or default path triggers)
+- [ ] **Agent template repo** `tradingdesk26/regimeshift-agent-starter` — referenced from landing, in progress
 - [ ] Methodology pages:
   - [ ] `regimeshift.xyz/methodology/agent-sofr-v1` — full Agent-SOFR formula
   - [ ] `regimeshift.xyz/methodology/repo-pricing-v1` — how rate maps to loan
@@ -167,8 +172,9 @@ First real on-chain loan deferred to Day 3.
   - [ ] Pre-record dry-run to check timing
   - [ ] Final cut with subtitles (Loom AI auto-generate)
 - [ ] Submission form fields:
-  - [ ] Project name: RegimeShift
-  - [ ] RFB: 04 — Adaptive Portfolio Manager
+  - [ ] Project name: **RegimeShift Clearinghouse**
+  - [ ] Tagline: **"AI central bank for the agent economy"**
+  - [ ] RFB: 04 — pivoted from "Adaptive Portfolio Manager" to clearinghouse / Agent-SOFR
   - [ ] Demo URL: regimeshift.xyz
   - [ ] Video URL: Loom link
   - [ ] GitHub: this repo + related (made public on submission day)
@@ -179,13 +185,12 @@ First real on-chain loan deferred to Day 3.
 ### Traction metrics template
 
 ```
-Live on Base mainnet since: 2026-04-XX
-AUM under agent management: $XXX
-Paid x402 endpoints: 5 (ETH VRP, BTC VRP, USD SOFR, EUR SOFR, ETH SOFR)
-On-chain organic paid calls received: X
-Test loans executed via InterAgentRepo: X
-Total tx volume on Base: $XXX
-Methodology pages IPFS-pinned: 2 (vrp-v1, agent-sofr-v1)
+Live on Base mainnet since: 2026-04-XX (ARMSHookV3) / 2026-05-21 (clearinghouse)
+Paid x402 endpoints: 4 (ETH VRP $0.005, BTC VRP $0.005, USD SOFR $0.10, max-LTV $0.005)
+On-chain organic paid calls received: 370+ on ETH VRP (auto-discovered via Bazaar)
+Active settlement contract: InterAgentRepoV4 (post 3-round audit, 0 findings)
+Demo loans executed end-to-end on V4: 1 (full originate → repay cycle, basescan tx hashes)
+Methodology pages IPFS-pinned: 2 (vrp-v1, agent-sofr-v1)  [agent-sofr-v1 pin pending]
 ```
 
 ### Risks & mitigations

@@ -34,7 +34,7 @@ Built for the [Agora Agents Hackathon](https://thecanteenapp.com/) under [RFB 04
 | **Match notifications (long-poll)** | ✅ `GET /v1/intent/{id}/match?wait=N` (max 300s) — for agents without public endpoints |
 | **Liquidation monitoring** (`/v1/liquidatable-loans`, `/v1/active-loans`) | ✅ Live |
 | **EIP-712 quote signing** | ✅ Verified via deployed `recoverSigner()` (both V1 + V2 domains) |
-| **Live MVP demo loan** | 🔄 Target by Day 3 |
+| **Live MVP demo loan on V4** | ✅ Executed 2026-05-22: $0.50 USDC / 0.0005 WETH / 300s / 480 bps / RESTING. [originate](https://basescan.org/tx/0xdf8967ce5ce8dd61d60b4736cfdc9c6d7de86450d0a3c59c02b80070f68e639b) → [repay](https://basescan.org/tx/0xb1b14009eff0bfbcbc919176078151932df7b7edfa06b0fd780e1f089fc5ed59) |
 | **Dashboard "Live Intents" panel** | 🔄 Target by Day 3 |
 | **Methodology pages + IPFS pinning** | 🔄 Target by Day 3 |
 | **Loom video + Agora submission** | 🔄 Target by Day 4 (deadline 2026-05-25) |
