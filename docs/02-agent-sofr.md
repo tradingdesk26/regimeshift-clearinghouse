@@ -46,30 +46,30 @@ Existing rate signals are all flawed for agent use:
         │                             │                             │
         ▼                             ▼                             ▼
   MARKET-DERIVED            REFERENCE-ONLY              MACRO ANCHOR
-  (weight: 0.70)            (weight: 0.20)              (weight: 0.10)
+  (weight: 0.75)            (weight: 0.15)              (weight: 0.10)
         │                             │                             │
    ┌────┴────┐               ┌────────┴────────┐                   │
    ▼         ▼               ▼                 ▼                   ▼
- Deribit   Aevo           Hyperliquid       Aave (Base)         SOFR (Fed)
+ Deribit   Aevo           Hyperliquid       Aave V3 (Base)      SOFR (Fed)
  options   options        perp funding      USDC borrow         30-day
- PCP       PCP            (largest perp)    (largest DeFi      reference
- 0.30      0.10           0.20              lending)            0.10
-                                            0.10
+ PCP       PCP            (largest perp)    (DeFi reference)   reference
+ 0.32      0.11           0.22              0.10                0.10
                                             +
-                                            Compound borrow
+                                            Compound USDC borrow
                                             0.05
-                                            +
-                                            Aave WETH borrow
-                                            0.05
+                          (Deribit basis 3m
+                           0.10 — sanity)
 ```
 
 ### Why this weighting
 
-**Market-derived = 70%:** These rates emerge from arbitrage and competitive trading. Hard to manipulate. Deribit options PCP weighted highest because options market is deepest and most resistant to short-term pressure.
+**Market-derived = 75%:** These rates emerge from arbitrage and competitive trading. Hard to manipulate. Deribit options PCP weighted highest because options market is deepest and most resistant to short-term pressure.
 
-**Reference-only = 20%:** Aave/Compound rates included for sanity-check, but capped at 20% so a single governance vote cannot move Agent-SOFR by more than ~80 bps. These rates inform but don't anchor.
+**Reference-only = 15%:** Aave/Compound **USDC** rates included for sanity-check, but capped so a single governance vote cannot move Agent-SOFR by more than ~60 bps. These rates inform but don't anchor.
 
 **Macro anchor = 10%:** TradFi SOFR included as long-horizon floor. Prevents Agent-SOFR from drifting wildly from real-economy USD short rate during illiquid crypto markets.
+
+**Why not WETH borrow rate:** It's the ETH lending market (interest paid in ETH), structurally separate from USDC short rate. Including it would pollute the signal — we measure the rate at which agents borrow USD against ETH collateral, not the rate at which someone borrows ETH itself. Removed in v1.0.1.
 
 ---
 
@@ -168,23 +168,21 @@ The 6-mode classifier matches our [ARMSHookV3 hook](https://github.com/tradingde
     "regime_adjustment": 0.15
   },
   "sources": {
-    "deribit_pcp_30d": 3.95,
-    "deribit_basis_3m": 3.85,
-    "aevo_pcp": 3.40,
-    "hl_funding_smoothed": 4.85,
-    "aave_borrow_usdc": 4.04,
-    "compound_borrow_usdc": 4.12,
-    "aave_borrow_weth": 2.30,
+    "deribit_pcp_30d": 4.05,
+    "deribit_basis_3m": 4.74,
+    "aevo_pcp": 3.00,
+    "hl_funding_smoothed": 10.95,
+    "aave_borrow_usdc": 4.17,
+    "compound_borrow_usdc": null,
     "sofr_30d": 4.32
   },
   "weights_applied": {
-    "deribit_pcp_30d": 0.30,
+    "deribit_pcp_30d": 0.32,
     "deribit_basis_3m": 0.10,
-    "aevo_pcp": 0.10,
-    "hl_funding_smoothed": 0.20,
+    "aevo_pcp": 0.11,
+    "hl_funding_smoothed": 0.22,
     "aave_borrow_usdc": 0.10,
     "compound_borrow_usdc": 0.05,
-    "aave_borrow_weth": 0.05,
     "sofr_30d": 0.10
   },
   "regime": {
@@ -310,7 +308,7 @@ Each methodology version cites its **calibration provenance** — what data was 
 | λ (jump weight) | 1.097 | `arms/research/round25_calibration.csv` | Same as above |
 | Hysteresis ε_down | 0.10 (10%) | `arms/research/cooldown_matrix.py` | Same — optimized for naive→hysteresis mode-change rate reduction |
 | Regime premium (RESTING/LOW/.../EXTREME) | 0 / 5 / 15 / 30 / 60 / 200 bps | Derived from RegimeCaps.sol fee schedule, scaled to loan horizons | Production hook live since 2026-04 |
-| Source weights | 70/20/10 (market/reference/macro) | This document | First defined in v1 (2026-05-21) |
+| Source weights | 75/15/10 (market/reference/macro) | This document | v1 defined 2026-05-21; v1.0.1 removed WETH borrow source 2026-05-22 |
 
 When we update any of these, the methodology version bumps. Old API responses remain verifiable against their original methodology hash.
 
