@@ -1,11 +1,12 @@
 # 4-Day Shipping Plan — Agora Submission Deadline 2026-05-25
 
-**Status: Day 2 complete + v1.0 liquidation shipped early — 2026-05-22**
+**Status: Day 2 complete + v1.0 liquidation + audit round-1 patched (V3) — 2026-05-22**
 
 - ✅ **Day 1 complete** — Agent-SOFR Oracle + max-LTV endpoint, both validated on-chain
 - ✅ **Day 2 complete** — InterAgentRepo V1 deployed, matching engine live, end-to-end signed-quote flow validated
-- ✅ **v1.0 liquidation shipped early** — InterAgentRepoV2 deployed at `0x2bfE...11E4` with Chainlink-driven pre-expiry liquidation, 14/14 Foundry tests, `/v1/liquidatable-loans` + `/v1/active-loans` live
-- 🔄 **Day 3** — Demo loan + dashboard + methodology pages
+- ✅ **v1.0 liquidation shipped** — InterAgentRepoV2 with Chainlink-driven pre-expiry liquidation, 14/14 Foundry tests
+- ✅ **Audit round-1 patched (V3)** — InterAgentRepoV3 deployed at `0xFfca...2945`, all 4 HIGH + 2 LOW findings fixed, 15/15 Foundry tests. See [`audit/round1.md`](audit/round1.md).
+- 🔄 **Day 3** — Demo loan on V3 + dashboard + methodology pages
 - 🔄 **Day 4** — Loom video + submission
 
 ## Operating principles
