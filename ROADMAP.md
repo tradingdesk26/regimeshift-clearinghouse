@@ -7,6 +7,7 @@
 - ✅ **v1.0 liquidation shipped** — V2 with Chainlink-driven pre-expiry liquidation, 14/14 Foundry tests
 - ✅ **Audit round-1 patched (V3)** — all 4 HIGH + 2 LOW findings fixed, 15/15 Foundry tests. See [`audit/round1.md`](audit/round1.md).
 - ✅ **Audit round-2 patched (V4)** — R2-#2 (pause-to-default DOS) fixed, R2-#3 (V2 retirement) executed, R2-#1 acknowledged as systemic. V4 at `0x9d3b...b31c`. See [`audit/round2.md`](audit/round2.md).
+- ✅ **Audit round-3 cleanup** — R3-#1 (V3 retirement) executed. Findings trajectory: 10 → 3 → 1. Auditor: "exemplary remediation discipline". See [`audit/round3.md`](audit/round3.md).
 - 🔄 **Day 3** — Demo loan on V4 + dashboard + methodology pages
 - 🔄 **Day 4** — Loom video + submission
 
