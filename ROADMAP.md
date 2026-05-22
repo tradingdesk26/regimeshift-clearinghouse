@@ -143,7 +143,7 @@ First real on-chain loan deferred to Day 3.
   - [ ] Show open lender intents (asset, amount, rate)
   - [ ] Show open borrower intents
   - [ ] Show recent matches with tx hash links to BaseScan
-- [ ] **Agent template repo** `tradingdesk26/regimeshift-agent-starter` — referenced from landing, in progress
+- [x] **Agent template repo** [`tradingdesk26/regimeshift-agent-starter`](https://github.com/tradingdesk26/regimeshift-agent-starter) — public, MIT, ~600 LOC across 4 roles (lender/borrower/liquidator/data_only). `python -m starter_agent` end-to-end smoke-tested against prod API. Strategy hooks (`decide_*` functions) for fork-and-customize workflow.
 - [ ] Methodology pages:
   - [ ] `regimeshift.xyz/methodology/agent-sofr-v1` — full Agent-SOFR formula
   - [ ] `regimeshift.xyz/methodology/repo-pricing-v1` — how rate maps to loan
