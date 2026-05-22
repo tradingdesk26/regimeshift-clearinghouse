@@ -146,7 +146,7 @@ Once a critical mass of agents reference Agent-SOFR, it becomes a **Schelling po
 
 **0:45 — 1:20 (35s) DATA PRODUCT**
 
-> "The agent is also a data provider. Two paid x402 endpoints on Base mainnet — ETH and BTC volatility risk premium. $0.001 per call. Yesterday I caught my **first organic paid call** from a cross-service AI agent that also pays CoinMarketCap, CoinGecko, and Messari. Settled on-chain."
+> "The agent is also a data provider — four paid x402 endpoints on Base mainnet with tiered pricing. VRP signals at $0.005, our Agent-SOFR benchmark rate at $0.10 (Messari Enterprise tier — there's nothing else like it), max-LTV risk signal at $0.005, signed loan quotes at 5 bps of principal. We've already caught our **first organic paid call** from a cross-service AI agent that also pays CoinMarketCap, CoinGecko, and Messari. Settled on-chain."
 
 [Show: BaseScan tx hash, agentic.market listing]
 

@@ -220,7 +220,9 @@ The 6-mode classifier matches our [ARMSHookV3 hook](https://github.com/tradingde
 
 ### Pricing
 
-$0.001 per call (same as VRP endpoints). x402 paywall on Base mainnet. CDP facilitator for settlement.
+**$0.10 per call** — Messari Enterprise tier. Agent-SOFR is a category-defining product (no other on-chain decentralized USD benchmark rate exists), priced accordingly. x402 paywall on Base mainnet, CDP facilitator for settlement.
+
+For comparison: VRP endpoints are $0.005 (commodity signal tier, competitive with CMC pro). Max-LTV is $0.005 (risk signal tier). Signed loan quotes are $0.05 flat / 5 bps of principal (action tier).
 
 ### Signed quote variant
 

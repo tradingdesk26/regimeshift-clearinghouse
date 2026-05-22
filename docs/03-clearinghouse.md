@@ -436,25 +436,30 @@ Our own agent (`vrp-agent`) consumes the marketplace it operates:
 
 ## Pricing — how we monetize
 
-Five revenue streams, all derived from the same calibrator:
+Five revenue streams, all derived from the same calibrator. Tiered pricing reflects value delivered:
 
 | Role | Revenue source |
 |------|----------------|
-| **Oracle (rate)** | $0.001 per Agent-SOFR query |
-| **Oracle (LTV/quote)** | $0.0002 per loan quote |
-| **Matcher** | 5-10 bps take on each matched loan |
+| **Oracle (VRP signals)** | $0.005 per VRP query (commodity tier — competitive with CMC pro) |
+| **Oracle (Agent-SOFR rate)** | **$0.10** per query (Messari Enterprise tier — category-defining product) |
+| **Oracle (Max-LTV risk)** | $0.005 per query (risk signal tier) |
+| **Oracle (signed loan quote)** | $0.05 flat OR 5 bps of principal — whichever larger (action tier) |
+| **Matcher** | 5-10 bps take on each matched loan (on-chain settlement) |
+| **Insurance accruals** | 1% of liquidated collateral on each `V2.liquidate()` |
 | **Lender** | Spread between fair rate and quoted rate (when our agent is LP) |
 | **Borrower** | Cheap access to capital for our own arb strategies |
 | **Reputation** | Issuing ERC-8004 credit attestations (future: paid) |
 
-Total expected gross margin at scale (~$1M daily loan volume):
+Total expected gross margin at scale (~$1M daily loan volume, ~10k Agent-SOFR queries):
 - Matching fee: 7 bps × $1M = $700/day
-- Oracle queries: 50,000 × $0.001 = $50/day
-- Quote endpoint: 10,000 × $0.0002 = $2/day
+- Agent-SOFR queries: 10,000 × $0.10 = $1,000/day
+- VRP + max-LTV queries: 50,000 × $0.005 = $250/day
+- Loan quote fees: 5 bps × $1M = $500/day (assumes quote-per-match)
+- Insurance pool accruals: ~$50/day at modest liquidation rate
 - Our LP spread: 20 bps × $100k of own capital = $5/day
-- **Total: ~$757/day at $1M volume, $276k/year**
+- **Total: ~$2,500/day at $1M volume = ~$910k/year**
 
-This is the **simplest possible revenue model**. Margins improve as we add credit attestations, insurance fees, and variance swap products.
+Pricing rationale: VRP and max-LTV at $0.005 keep them competitive vs CMC/CoinGecko pro (broad adoption). **Agent-SOFR at $0.10 reflects that no equivalent product exists** — it's the only on-chain decentralized USD benchmark rate aggregated from manipulation-resistant sources. Signed loan quotes scale with loan value (5 bps), aligning our incentive with marketplace utilization. Margins improve as we add credit attestations, insurance disbursements, and variance swap products.
 
 ---
 
