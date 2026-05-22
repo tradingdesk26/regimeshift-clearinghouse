@@ -271,13 +271,56 @@ REGIME_MAX_LTV = {
   - Max loan size $50 (capped via `require(principal_amount < 50e6)`)
   - No pre-expiry liquidation (collateral claimable only on default)
 
-### Future risk extensions (post-MVP)
+### Liquidation mechanism (V2 — deployed)
 
-- **Pre-expiry liquidation** when LTV deteriorates (chainlink price oracle check + grace period)
+V2 of the contract ([`0x2bfE0f1142B04049d867389Bf91A84e498ED11E4`](https://basescan.org/address/0x2bfE0f1142B04049d867389Bf91A84e498ED11E4)) adds pre-expiry liquidation. V1 (`0xaea1...7400`) stays live as the MVP-no-liquidation demonstration.
+
+| Mechanism | V1 (`0xaea1...7400`) | V2 (`0x2bfE...11E4`) |
+|-----------|---------------------|---------------------|
+| Expiry default | ✅ `defaultLoan()` | ✅ kept |
+| Pre-expiry liquidation | ❌ None | ✅ `liquidate()` with Chainlink ETH/USD |
+| LTV threshold | N/A | 95% — current_ltv_bps ≥ 9500 triggers liquidation |
+| Liquidator bounty | N/A | **3%** of collateral to msg.sender |
+| Insurance pool fee | N/A | **1%** of collateral accrues to insurance pool |
+| Grace period (anti-flash) | N/A | **60 seconds** after origination |
+| Price feed staleness limit | N/A | **1 hour** (Chainlink heartbeat) |
+| LTV cap by regime | ✅ Static (RESTING 98% → HIGH 75%) | ✅ Same caps applied off-chain at origination |
+| Matching pause | ✅ in EXTREME regime | ✅ Same |
+| `currentLTV(loanId)` view | ❌ | ✅ Returns (ltv_bps, eth_price, liquidatable_bool) |
+| Asset whitelist | All | USDC principal + WETH collateral (multi-asset is v2.0+) |
+
+#### How liquidation works in V2
+
+1. **Anyone** can call `liquidate(loanId)` — no permissioning, gas-incentivized via bounty
+2. Contract pulls current ETH/USD price from Chainlink feed (reverts if stale > 1h or zero)
+3. Computes `current_ltv_bps = principalValue × 10000 / collateralValue` (USD-scaled)
+4. Reverts if LTV < 9500 (95% threshold) — `LtvNotBreached(currentLtvBps, 9500)`
+5. Reverts if within grace period — `GracePeriodActive()`
+6. Splits collateral:
+   - **3%** → msg.sender (liquidator bounty, gas-positive even at $5 loan size)
+   - **1%** → insurance pool (currently burner wallet, will rotate to multisig)
+   - **96%** → lender (recovered value)
+7. Emits `LoanLiquidated(loanId, liquidator, currentLtvBps, ethPriceE8, bounty, insuranceFee, lenderRecovered)`
+
+#### Off-chain liquidation monitoring
+
+Two free REST endpoints expose live state to potential liquidators:
+
+- **`GET /v1/active-loans`** — all originated loans with current LTV (for dashboard)
+- **`GET /v1/liquidatable-loans`** — only loans where LTV ≥ 95% AND grace passed
+                                     (ready-to-trigger feed for liquidator bots)
+
+The matcher calls `currentLTV()` view function on V2 per loan via `eth_call`,
+no events scanning needed.
+
+### Future risk extensions (post-hackathon, v2.0+)
+
 - **Partial repayment** + proportional collateral release
-- **Margin calls** triggered when LTV crosses threshold (notification to borrower)
-- **Insurance pool** funded by orchestrator take to cover gap losses
-- **ERC-8004 credit history** → per-counterparty default-prob spread
+- **Margin call notifications** (off-chain → borrower webhook before liquidation)
+- **Multi-collateral support** (BTC, EURC, ETH-as-principal — needs per-asset Chainlink feeds)
+- **Dutch auction liquidation** instead of fixed-bounty for large positions
+- **ERC-8004 credit-based variable LTV** per counterparty default history
+- **Insurance pool governance** — DAO over disbursement, claim mechanics
 
 ---
 

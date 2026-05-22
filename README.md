@@ -18,10 +18,14 @@ Built for the [Agora Agents Hackathon](https://thecanteenapp.com/) under [RFB 04
 | **Custom Uniswap v4 hook** (ARMSHookV3) | ✅ Live, ~1.5× TVL in first 14h |
 | **Agent-SOFR Oracle** (`/v1/rate/sofr/usd`) | ✅ Live, paid + on-chain validated |
 | **Max-LTV risk endpoint** (`/v1/risk/max-ltv`) | ✅ Live, paid + on-chain validated |
-| **InterAgentRepo.sol** escrow contract | ✅ Deployed [`0xaea1...7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) — Foundry 10/10 tests pass |
+| **InterAgentRepo V1** escrow (MVP) | ✅ Deployed [`0xaea1...7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) — Foundry 10/10 tests pass |
+| **InterAgentRepo V2** escrow (production) | ✅ Deployed [`0x2bfE...11E4`](https://basescan.org/address/0x2bfE0f1142B04049d867389Bf91A84e498ED11E4) — Chainlink liquidation, Foundry 14/14 tests pass |
+| **Chainlink ETH/USD oracle integration** | ✅ Live in V2 — pre-expiry liquidation when LTV ≥ 95% |
+| **Liquidator bounty + insurance pool** | ✅ Live in V2 — 3% bounty, 1% insurance |
 | **Off-chain matching engine** | ✅ Live, end-to-end validated |
 | **Intent submission APIs** (`/v1/intent/*`) | ✅ Live, free (settlement on-chain) |
-| **EIP-712 quote signing** | ✅ Verified via deployed `recoverSigner()` |
+| **Liquidation monitoring** (`/v1/liquidatable-loans`, `/v1/active-loans`) | ✅ Live |
+| **EIP-712 quote signing** | ✅ Verified via deployed `recoverSigner()` (both V1 + V2 domains) |
 | **Live MVP demo loan** | 🔄 Target by Day 3 |
 | **Dashboard "Live Intents" panel** | 🔄 Target by Day 3 |
 | **Methodology pages + IPFS pinning** | 🔄 Target by Day 3 |
@@ -81,13 +85,17 @@ Detailed in [`docs/02-agent-sofr.md`](docs/02-agent-sofr.md) and [`docs/03-clear
 
 | Artifact | Address / Tx |
 |----------|-------------|
-| **InterAgentRepo.sol** | [`0xaea176DDa786c8B14802f92385749C7Cdf6C7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) |
-| Contract deploy | [`0xf2344c9c...ba2698`](https://basescan.org/tx/0xf2344c9cd8a90c9371d990cc8420bbf839ac14fb9fb099f8c5465f0354ba2698) |
+| **InterAgentRepo V1** (MVP — no liquidation) | [`0xaea176DDa786c8B14802f92385749C7Cdf6C7400`](https://basescan.org/address/0xaea176DDa786c8B14802f92385749C7Cdf6C7400) |
+| **InterAgentRepo V2** (production — Chainlink liquidation) | [`0x2bfE0f1142B04049d867389Bf91A84e498ED11E4`](https://basescan.org/address/0x2bfE0f1142B04049d867389Bf91A84e498ED11E4) |
+| V1 contract deploy | [`0xf2344c9c...ba2698`](https://basescan.org/tx/0xf2344c9cd8a90c9371d990cc8420bbf839ac14fb9fb099f8c5465f0354ba2698) |
+| V2 contract deploy | [`0xad3fdca2...3e9bab0a`](https://basescan.org/tx/0xad3fdca2013de1a995dd3bc5778d539d6e443feec07aaff149eb291b3e9bab0a) |
+| Chainlink ETH/USD feed (Base) | [`0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70`](https://basescan.org/address/0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70) |
 | ETH VRP — first organic paid call | [`0x1a7fa538...96820f6`](https://basescan.org/tx/0x1a7fa5389aa1dea89af95f553ab8170d6e3f688910c872d81e47dcad896820f6) |
 | BTC VRP — self-validated paid call | [`0x04a37d60...c8aad`](https://basescan.org/tx/0x04a37d60c37c50830971837b531f7daf6b6ce77adca6f9ccf3d824880cdc8aad) |
 | Agent-SOFR — self-validated paid call | [`0x9ecaacbe...3449a`](https://basescan.org/tx/0x9ecaacbe0b97e1a05c868027a963100600082c6a90323f274f8e1d8d2623449a) |
 | max-LTV — self-validated paid call | [`0x5579313c...82a86`](https://basescan.org/tx/0x5579313cf5de4c4047f73e8ddae91ee6eea0b7ddd8da7ec45d8ae4d2d1782a86) |
 | Oracle signer | `0x3d6EF3B451Abaf79eb0a5c08089518fB3f4de8b5` |
+| Insurance pool (MVP, will rotate to multisig) | `0x3d6EF3B451Abaf79eb0a5c08089518fB3f4de8b5` |
 | Seller pay-to wallet | `0x82B17D0bb4De9ae6c3491257B60E8245e70acd7B` |
 
 ---
