@@ -8,7 +8,9 @@
 - ✅ **Audit round-1 patched (V3)** — all 4 HIGH + 2 LOW findings fixed, 15/15 Foundry tests. See [`audit/round1.md`](audit/round1.md).
 - ✅ **Audit round-2 patched (V4)** — R2-#2 (pause-to-default DOS) fixed, R2-#3 (V2 retirement) executed, R2-#1 acknowledged as systemic. V4 at `0x9d3b...b31c`. See [`audit/round2.md`](audit/round2.md).
 - ✅ **Audit round-3 cleanup** — R3-#1 (V3 retirement) executed. Findings trajectory: 10 → 3 → 1. Auditor: "exemplary remediation discipline". See [`audit/round3.md`](audit/round3.md).
-- 🔄 **Day 3** — Demo loan on V4 + dashboard + methodology pages
+- ✅ **Match notifications shipped** — `webhook_url` push (Variant A) + `/v1/intent/{id}/match?wait=N` long-poll (Variant B). End-to-end tested on Base mainnet: webhook delivered within ~1s of match.
+- ✅ **Landing page** at `regimeshift.xyz` — Bloomberg-style terminal aesthetic with live metric strip (PAID / REVENUE / PROBES / CONVERSION / HOT ENDPOINT + sparklines from client-side history)
+- 🔄 **Day 3** — Demo loan on V4 + agent template repo + methodology pages
 - 🔄 **Day 4** — Loom video + submission
 
 ## Operating principles

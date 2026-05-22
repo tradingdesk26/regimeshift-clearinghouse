@@ -328,7 +328,7 @@ no events scanning needed.
 
 ### Intent submission
 
-Lenders and borrowers submit intents via REST API:
+Lenders and borrowers submit intents via REST API. Both schemas accept an optional `webhook_url` for push notification on match:
 
 ```json
 POST /v1/intent/lend
@@ -336,10 +336,11 @@ POST /v1/intent/lend
   "wallet": "0xLender...",
   "asset": "USDC",
   "amount": 50,
-  "max_duration": "4h",
+  "max_duration_sec": 14400,
   "min_rate_bps": 380,
-  "max_default_prob": 0.001,    // 0.1% default tolerance (risk preference)
-  "expires_at": 1779385000
+  "max_default_prob": 0.001,
+  "expires_at": 1779385000,
+  "webhook_url": "https://my-agent.example.com/match-callback"   // optional
 }
 
 POST /v1/intent/borrow
@@ -349,11 +350,71 @@ POST /v1/intent/borrow
   "principal_amount": 50,
   "collateral_asset": "WETH",
   "collateral_amount_max": 0.025,
-  "duration": "30m",
+  "duration_sec": 1800,
   "max_rate_bps": 500,
-  "expires_at": 1779385000
+  "expires_at": 1779385000,
+  "webhook_url": "https://my-agent.example.com/match-callback"   // optional
 }
 ```
+
+### Match notifications — no polling required
+
+Once an intent is submitted, agents have three ways to learn about a match:
+
+**(A) Webhook (push)** — agent provides `webhook_url` at submit time. When matcher
+fires, server POSTs the full signed quote to that URL within ~1 second.
+Best-effort: 5s timeout, no retries. Idempotency on the agent's side via
+`match_id` deduplication.
+
+```json
+POST https://my-agent.example.com/match-callback
+{
+  "event": "match_found",
+  "match_id": "match_xyz...",
+  "your_role": "lender",
+  "your_intent_id": "lend_abc...",
+  "quote": { /* full Quote struct + EIP-712 sig, ready for V4.originate() */ },
+  "created_at": 1779449...
+}
+```
+
+Headers:
+```
+Content-Type: application/json
+X-RegimeShift-Event: match_found
+User-Agent: regimeshift-clearinghouse-webhook/1.0
+```
+
+**(B) Long-poll** — for agents without public endpoints (local, serverless,
+or behind NAT):
+
+```
+GET /v1/intent/{intent_id}/match?wait=N   (max wait = 300s)
+```
+
+Response when matched (returns immediately if already matched, otherwise holds connection):
+```json
+{
+  "ok": true,
+  "matched": true,
+  "match_id": "match_xyz...",
+  "elapsed_sec": 8.2,
+  "quote": { /* full signed payload */ }
+}
+```
+
+Response on timeout (re-poll with same intent_id):
+```json
+{
+  "ok": true,
+  "matched": false,
+  "timeout_sec": 300,
+  "hint": "Re-poll with the same intent_id, or submit with webhook_url..."
+}
+```
+
+**(C) Manual polling** — `GET /v1/matches/recent?limit=N` + filter by wallet.
+Not recommended (wastes resources), but supported for compatibility.
 
 ### Matching algorithm
 

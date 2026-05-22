@@ -67,6 +67,7 @@ Three primitives, mirroring TradFi's architecture but on permissionless rails:
 - **Live demo loan** — real $5-10 loan between two test wallets, originate + repay on-chain.
 - **Methodology pages** — IPFS-pinned, hash-referenced in API responses. Trust through transparency.
 - **Closed-loop integration** — our own agent uses the marketplace it operates. When in `DEFENSIVE_CASH`, auto-submits lender intent. Endogenous bootstrap liquidity.
+- **Match notifications — no polling required** — `webhook_url` push (Variant A) for hosted agents, `GET /v1/intent/{id}/match?wait=N` long-poll (Variant B) for local/serverless. End-to-end tested: webhook delivers signed quote within ~1s of match. Industry-aligned with Stripe/GitHub webhook patterns.
 
 ### Why this is RFB 04
 

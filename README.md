@@ -30,6 +30,8 @@ Built for the [Agora Agents Hackathon](https://thecanteenapp.com/) under [RFB 04
 | **Liquidator bounty + insurance pool** | ✅ Live in V2+V3+V4 — 3% bounty, 1% insurance |
 | **Off-chain matching engine** | ✅ Live, end-to-end validated |
 | **Intent submission APIs** (`/v1/intent/*`) | ✅ Live, free (settlement on-chain) |
+| **Match notifications (push)** | ✅ `webhook_url` field on intent submit — server POSTs full signed quote to your URL within ~1s of match |
+| **Match notifications (long-poll)** | ✅ `GET /v1/intent/{id}/match?wait=N` (max 300s) — for agents without public endpoints |
 | **Liquidation monitoring** (`/v1/liquidatable-loans`, `/v1/active-loans`) | ✅ Live |
 | **EIP-712 quote signing** | ✅ Verified via deployed `recoverSigner()` (both V1 + V2 domains) |
 | **Live MVP demo loan** | 🔄 Target by Day 3 |
