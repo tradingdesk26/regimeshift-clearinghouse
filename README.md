@@ -133,7 +133,9 @@ Detailed in [`docs/02-agent-sofr.md`](docs/02-agent-sofr.md) and [`docs/03-clear
 ## Related repos
 
 - [`tradingdesk26/vrp-agent`](https://github.com/tradingdesk26/vrp-agent) — The autonomous portfolio agent (reference customer)
-- [`tradingdesk26/armsys-signals`](https://github.com/tradingdesk26/armsys-signals) — VRP signals API (paid x402 endpoints)
+- [`tradingdesk26/armsys-signals`](https://github.com/tradingdesk26/armsys-signals) — VRP signals API (paid x402 endpoints + two-tier facilitator)
+- [`tradingdesk26/regimeshift-demo-activity`](https://github.com/tradingdesk26/regimeshift-demo-activity) — Autonomous bot that keeps the Loan Registry alive + pays for Agent-SOFR via x402 (three-wallet role architecture)
+- [`tradingdesk26/regimeshift-agent-starter`](https://github.com/tradingdesk26/regimeshift-agent-starter) — Minimal starter kit for new agents
 - [`tradingdesk26/regimeshift-fx`](https://github.com/tradingdesk26/regimeshift-fx) — EURC/USDC custom Uniswap v4 hook
 
 ---
