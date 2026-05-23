@@ -81,7 +81,8 @@ This repo builds those primitives. See [`docs/01-thesis.md`](docs/01-thesis.md) 
 │      principal, atomic                                  │
 │    - repay(loanId) → return principal+interest          │
 │    - defaultLoan(loanId) → seize collateral             │
-│  • x402 USDC settlements via self-hosted facilitator    │
+│  • x402 USDC settlements: CDP primary + self-host fall- │
+│    back (transparent failover, no client-visible breaks)│
 │  • EIP-712 signature verification via ECDSA             │
 │  • Trade audit trail (event logs)                       │
 │  • IPFS methodology hashes (planned)                    │
@@ -111,7 +112,7 @@ Detailed in [`docs/02-agent-sofr.md`](docs/02-agent-sofr.md) and [`docs/03-clear
 | max-LTV — self-validated paid call | [`0x5579313c...82a86`](https://basescan.org/tx/0x5579313cf5de4c4047f73e8ddae91ee6eea0b7ddd8da7ec45d8ae4d2d1782a86) |
 | Oracle signer + owner (rotated 2026-05-23) | `0x8456bE7B0a576CE36F41Ae43231b08f04f744C8b` |
 | Insurance pool (MVP — will rotate to multisig; currently empty) | `0x3d6EF3B451Abaf79eb0a5c08089518fB3f4de8b5` |
-| x402 facilitator relayer (self-hosted, on Base mainnet) | `0x3d6EF3B451Abaf79eb0a5c08089518fB3f4de8b5` |
+| x402 settlement | Primary: **Coinbase CDP** facilitator (gas paid by CDP relayer). Fallback: self-hosted on the same VM, relayer wallet `0x3d6EF3B451Abaf79eb0a5c08089518fB3f4de8b5` |
 | Seller pay-to wallet (paid x402 USDC lands here) | `0x82B17D0bb4De9ae6c3491257B60E8245e70acd7B` |
 
 ---
