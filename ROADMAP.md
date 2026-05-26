@@ -51,8 +51,8 @@ EUR + ETH variants deferred to v1.1.
 - [x] `oracle/max_ltv.py` — math max LTV + regime cap, Black-Cox first-passage
 - [x] `oracle/agent_sofr.py` — composition entry point
 - [x] Wire into `arms-signals/app.py` as new routes:
-  - [x] `GET /v1/rate/sofr/usd?horizon=1h` — initially $0.001, **bumped to $0.10 (Messari Enterprise tier) post-launch**
-  - [x] `GET /v1/risk/max-ltv?asset=ETH&...` — initially $0.001, **bumped to $0.005 post-launch**
+  - [x] `GET /v1/rate/sofr/usd?horizon=1h` — currently **$0.001 (onboarding tier)**; eventual target $0.10 (Messari Enterprise) once organic traffic stabilises
+  - [x] `GET /v1/risk/max-ltv?asset=ETH&...` — currently **$0.001 (onboarding tier)**; eventual target $0.005 (CMC-pro)
 - [x] Bazaar discovery extension for both
 - [x] Deploy to VM, restart systemd
 - [x] Self-validate with burner wallet
@@ -103,7 +103,7 @@ First real on-chain loan deferred to Day 3.
   - [x] Applies lender's `max_default_prob` for LTV
   - [x] Generates signed EIP-712 quote on match
 - [x] API endpoints in arms-signals:
-  - [x] `GET /v1/risk/max-ltv` — paid (initially $0.001, now $0.005)
+  - [x] `GET /v1/risk/max-ltv` — paid (currently $0.001, onboarding tier)
   - [x] `POST /v1/intent/lend` — free
   - [x] `POST /v1/intent/borrow` — free, auto-fires matcher
   - [x] `GET /v1/intents/open` — free
@@ -186,7 +186,7 @@ First real on-chain loan deferred to Day 3.
 
 ```
 Live on Base mainnet since: 2026-04-XX (ARMSHookV3) / 2026-05-21 (clearinghouse)
-Paid x402 endpoints: 4 (ETH VRP $0.005, BTC VRP $0.005, USD SOFR $0.10, max-LTV $0.005)
+Paid x402 endpoints: 4 (ETH VRP, BTC VRP, USD SOFR, max-LTV — all at $0.001 onboarding tier)
 On-chain organic paid calls received: 370+ on ETH VRP (auto-discovered via Bazaar)
 Active settlement contract: InterAgentRepoV4 (post 3-round audit, 0 findings)
 Demo loans executed end-to-end on V4: 1 (full originate → repay cycle, basescan tx hashes)

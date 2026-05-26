@@ -218,9 +218,9 @@ The 6-mode classifier matches our [ARMSHookV3 hook](https://github.com/tradingde
 
 ### Pricing
 
-**$0.10 per call** — Messari Enterprise tier. Agent-SOFR is a category-defining product (no other on-chain decentralized USD benchmark rate exists), priced accordingly. x402 paywall on Base mainnet, CDP facilitator for settlement.
+**Current price: $0.001 per call — onboarding tier.** Held at the minimum probe amount (matches what external agents pay when evaluating unknown services) to keep the friction floor near zero while we acquire organic traffic. Eventual target: $0.10 (Messari Enterprise tier — Agent-SOFR is a category-defining product, no other on-chain decentralized USD benchmark rate exists). x402 paywall on Base mainnet, two-tier facilitator (CDP primary + self-hosted fallback).
 
-For comparison: VRP endpoints are $0.005 (commodity signal tier, competitive with CMC pro). Max-LTV is $0.005 (risk signal tier). Signed loan quotes are $0.05 flat / 5 bps of principal (action tier).
+All other paid endpoints follow the same onboarding tier ($0.001). Post-acquisition target tiers: VRP $0.005 (CMC-pro), max-LTV $0.005 (risk signal), signed loan quotes $0.05 flat / 5 bps of principal (action tier).
 
 ### Signed quote variant
 

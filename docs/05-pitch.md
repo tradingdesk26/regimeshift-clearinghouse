@@ -147,7 +147,7 @@ Once a critical mass of agents reference Agent-SOFR, it becomes a **Schelling po
 
 **0:45 — 1:20 (35s) DATA PRODUCT**
 
-> "The agent is also a data provider — four paid x402 endpoints on Base mainnet with tiered pricing. VRP signals at $0.005, our Agent-SOFR benchmark rate at $0.10 (Messari Enterprise tier — there's nothing else like it), max-LTV risk signal at $0.005, signed loan quotes at 5 bps of principal. We've already caught our **first organic paid call** from a cross-service AI agent that also pays CoinMarketCap, CoinGecko, and Messari. Settled on-chain."
+> "The agent is also a data provider — four paid x402 endpoints on Base mainnet. All held at the onboarding tier of $0.001 per call (matches what external probe agents will pay for unknown services) — friction-free trial while we acquire organic traffic. Post-acquisition tiers map to value delivered: VRP signals → $0.005, Agent-SOFR benchmark → $0.10 (Messari Enterprise tier, no equivalent on-chain), max-LTV risk → $0.005, signed loan quotes → 5 bps of principal. Revenue base today is loan-interest spread + the 3% V4 liquidator bounty, not endpoint micro-payments. Every paid call settles on-chain — visible on BaseScan + x402scan."
 
 [Show: BaseScan tx hash, agentic.market listing]
 

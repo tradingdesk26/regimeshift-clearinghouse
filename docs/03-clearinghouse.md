@@ -517,9 +517,9 @@ Five revenue streams, all derived from the same calibrator. Tiered pricing refle
 
 | Role | Revenue source |
 |------|----------------|
-| **Oracle (VRP signals)** | $0.005 per VRP query (commodity tier — competitive with CMC pro) |
-| **Oracle (Agent-SOFR rate)** | **$0.10** per query (Messari Enterprise tier — category-defining product) |
-| **Oracle (Max-LTV risk)** | $0.005 per query (risk signal tier) |
+| **Oracle (VRP signals)** | $0.001 per query — onboarding tier (eventual target $0.005, CMC-pro level) |
+| **Oracle (Agent-SOFR rate)** | $0.001 per query — onboarding tier (eventual target $0.10 Messari-Enterprise — category-defining product, no equivalent on-chain benchmark exists) |
+| **Oracle (Max-LTV risk)** | $0.001 per query — onboarding tier (eventual target $0.005) |
 | **Oracle (signed loan quote)** | $0.05 flat OR 5 bps of principal — whichever larger (action tier) |
 | **Matcher** | 5-10 bps take on each matched loan (on-chain settlement) |
 | **Insurance accruals** | 1% of liquidated collateral on each `V2.liquidate()` |
@@ -527,16 +527,16 @@ Five revenue streams, all derived from the same calibrator. Tiered pricing refle
 | **Borrower** | Cheap access to capital for our own arb strategies |
 | **Reputation** | Issuing ERC-8004 credit attestations (future: paid) |
 
-Total expected gross margin at scale (~$1M daily loan volume, ~10k Agent-SOFR queries):
+Total expected gross margin at scale (~$1M daily loan volume, ~10k Agent-SOFR queries) — **post-acquisition tier pricing**:
 - Matching fee: 7 bps × $1M = $700/day
-- Agent-SOFR queries: 10,000 × $0.10 = $1,000/day
-- VRP + max-LTV queries: 50,000 × $0.005 = $250/day
+- Agent-SOFR queries: 10,000 × $0.10 (target) = $1,000/day
+- VRP + max-LTV queries: 50,000 × $0.005 (target) = $250/day
 - Loan quote fees: 5 bps × $1M = $500/day (assumes quote-per-match)
 - Insurance pool accruals: ~$50/day at modest liquidation rate
 - Our LP spread: 20 bps × $100k of own capital = $5/day
-- **Total: ~$2,500/day at $1M volume = ~$910k/year**
+- **Total target: ~$2,500/day at $1M volume = ~$910k/year**
 
-Pricing rationale: VRP and max-LTV at $0.005 keep them competitive vs CMC/CoinGecko pro (broad adoption). **Agent-SOFR at $0.10 reflects that no equivalent product exists** — it's the only on-chain decentralized USD benchmark rate aggregated from manipulation-resistant sources. Signed loan quotes scale with loan value (5 bps), aligning our incentive with marketplace utilization. Margins improve as we add credit attestations, insurance disbursements, and variance swap products.
+Pricing rationale: during the acquisition phase, **all endpoints are held at $0.001 per call** — the minimum probe amount external agents pay when evaluating unknown services. Friction-free trial keeps the funnel open while we build organic traffic; revenue base in this phase is loan-interest spread + V4 liquidator bounty (3%), not endpoint micro-payments. Once organic external paying-agent traffic stabilises, VRP and max-LTV move to $0.005 (CMC-pro level), Agent-SOFR to $0.10 (Messari-Enterprise — no equivalent on-chain benchmark exists). Signed loan quotes will scale with loan value (5 bps), aligning our incentive with marketplace utilisation.
 
 ---
 
