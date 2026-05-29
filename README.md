@@ -4,7 +4,7 @@
 
 The first decentralized benchmark rate for AI agents (Agent-SOFR) + the RFQ marketplace that lets agents lend, borrow, and swap collateralized capital at sub-block to multi-hour horizons.
 
-Built for the [Agora Agents Hackathon](https://thecanteenapp.com/) under [RFB 04 — Adaptive Portfolio Manager](https://agora.canteen.app) — but architected as foundational infrastructure that other adaptive portfolio agents will need to consume.
+Originally built for the [Agora Agents Hackathon](https://thecanteenapp.com/) under [RFB 04 — Adaptive Portfolio Manager](https://agora.canteen.app) — now live in production on Base mainnet as foundational infrastructure that other adaptive portfolio agents consume.
 
 ---
 
@@ -36,9 +36,11 @@ Built for the [Agora Agents Hackathon](https://thecanteenapp.com/) under [RFB 04
 | **EIP-712 quote signing** | ✅ Verified via deployed `recoverSigner()` (both V1 + V2 domains) |
 | **Live MVP demo loan on V4** | ✅ Executed 2026-05-22: $0.50 USDC / 0.0005 WETH / 300s / 480 bps / RESTING. [originate](https://basescan.org/tx/0xdf8967ce5ce8dd61d60b4736cfdc9c6d7de86450d0a3c59c02b80070f68e639b) → [repay](https://basescan.org/tx/0xb1b14009eff0bfbcbc919176078151932df7b7edfa06b0fd780e1f089fc5ed59) |
 | **Agent starter kit** ([`regimeshift-agent-starter`](https://github.com/tradingdesk26/regimeshift-agent-starter)) | ✅ Public 2026-05-22 — MIT, Python 3.10+, ~600 LOC across 4 roles (lender/borrower/liquidator/data_only). `python -m starter_agent` smoke-tested against prod API. |
-| **Dashboard "Live Intents" panel** | 🔄 Target by Day 3 |
-| **Methodology pages + IPFS pinning** | 🔄 Target by Day 3 |
-| **Loom video + Agora submission** | 🔄 Target by Day 4 (deadline 2026-05-25) |
+| **MCP server** (`mcp.regimeshift.xyz`) | ✅ Live — remote MCP (streamable-HTTP `/mcp` + SSE `/sse`), paid per-tool via x402; first mainnet settlement 2026-05-29 |
+| **MCP Registry listing** (official) | ✅ Published `xyz.regimeshift/mcp` v1.0.0, status `active` |
+| **Dashboard "Live Intents" panel** | ✅ Live on regimeshift.xyz — order book wired to `/v1/intents/open` |
+| **Methodology pages** | ✅ Live + IPFS-pinned at `regimeshift.xyz/methodology` (agent-sofr-v1 page-hash refresh pending) |
+| **Agora submission** | ✅ Submitted 2026-05-25 |
 
 ---
 
@@ -76,7 +78,7 @@ This repo builds those primitives. See [`docs/01-thesis.md`](docs/01-thesis.md) 
                       │
 ┌─────────────────────▼───────────────────────────────────┐
 │  REGISTRY LAYER (on-chain, immutable, Base mainnet)     │
-│  • InterAgentRepo.sol escrow at 0xaea1...7400           │
+│  • InterAgentRepo.sol escrow at 0x9d3b...b31c           │
 │    - originate(Quote, sig) → pull collateral, transfer │
 │      principal, atomic                                  │
 │    - repay(loanId) → return principal+interest          │
@@ -85,7 +87,7 @@ This repo builds those primitives. See [`docs/01-thesis.md`](docs/01-thesis.md) 
 │    back (transparent failover, no client-visible breaks)│
 │  • EIP-712 signature verification via ECDSA             │
 │  • Trade audit trail (event logs)                       │
-│  • IPFS methodology hashes (planned)                    │
+│  • IPFS methodology hashes (live)                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -126,7 +128,7 @@ Detailed in [`docs/02-agent-sofr.md`](docs/02-agent-sofr.md) and [`docs/03-clear
 | [`docs/03-clearinghouse.md`](docs/03-clearinghouse.md) | Marketplace architecture (atomic + term) |
 | [`docs/04-rate-sources.md`](docs/04-rate-sources.md) | Live rate comparison across venues |
 | [`docs/05-pitch.md`](docs/05-pitch.md) | Submission pitch for Agora |
-| [`ROADMAP.md`](ROADMAP.md) | 4-day shipping plan |
+| [`ROADMAP.md`](ROADMAP.md) | Historical 4-day build sprint (shipped + submitted 2026-05-25) |
 
 ---
 
@@ -142,4 +144,4 @@ Detailed in [`docs/02-agent-sofr.md`](docs/02-agent-sofr.md) and [`docs/03-clear
 
 ## License
 
-TBD — open methodology, source code TBD post-hackathon.
+TBD — open methodology, source-code license under review.

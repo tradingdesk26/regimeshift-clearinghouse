@@ -1,5 +1,7 @@
 # Submission Pitch — Agora Agents Hackathon
 
+> ✅ **Historical submission document (Agora, 2026-05-25). For current production status see the [README](../README.md).**
+
 ## Project info
 
 - **Project name:** RegimeShift

@@ -326,10 +326,10 @@ Two free REST endpoints expose live state to potential liquidators:
 - **`GET /v1/liquidatable-loans`** — only loans where LTV ≥ 95% AND grace passed
                                      (ready-to-trigger feed for liquidator bots)
 
-The matcher calls `currentLTV()` view function on V2 per loan via `eth_call`,
+The matcher calls `currentLTV()` view function on V4 per loan via `eth_call`,
 no events scanning needed.
 
-### Future risk extensions (post-hackathon, v2.0+)
+### Future risk extensions (v2.0+)
 
 - **Partial repayment** + proportional collateral release
 - **Margin call notifications** (off-chain → borrower webhook before liquidation)
@@ -522,7 +522,7 @@ Five revenue streams, all derived from the same calibrator. Tiered pricing refle
 | **Oracle (Max-LTV risk)** | $0.001 per query — onboarding tier (eventual target $0.005) |
 | **Oracle (signed loan quote)** | $0.05 flat OR 5 bps of principal — whichever larger (action tier) |
 | **Matcher** | 5-10 bps take on each matched loan (on-chain settlement) |
-| **Insurance accruals** | 1% of liquidated collateral on each `V2.liquidate()` |
+| **Insurance accruals** | 1% of liquidated collateral on each `V4.liquidate()` |
 | **Lender** | Spread between fair rate and quoted rate (when our agent is LP) |
 | **Borrower** | Cheap access to capital for our own arb strategies |
 | **Reputation** | Issuing ERC-8004 credit attestations (future: paid) |

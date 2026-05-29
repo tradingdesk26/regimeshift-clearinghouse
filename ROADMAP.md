@@ -1,6 +1,8 @@
-# 4-Day Shipping Plan — Agora Submission Deadline 2026-05-25
+# 4-Day Shipping Plan — Agora Submission (2026-05-25)
 
-**Status: Day 2 complete + v1.0 liquidation + audit R1 (V3) + audit R2 (V4) all shipped — 2026-05-22**
+> ✅ **Historical build plan — shipped & submitted to Agora on 2026-05-25; live in production since. See [README](README.md) for current status.**
+
+**Status (mid-sprint snapshot): Day 2 complete + v1.0 liquidation + audit R1 (V3) + audit R2 (V4) all shipped — 2026-05-22**
 
 - ✅ **Day 1 complete** — Agent-SOFR Oracle + max-LTV endpoint, both validated on-chain
 - ✅ **Day 2 complete** — InterAgentRepo V1 deployed, matching engine live, end-to-end signed-quote flow validated
@@ -187,10 +189,10 @@ First real on-chain loan deferred to Day 3.
 ```
 Live on Base mainnet since: 2026-04-XX (ARMSHookV3) / 2026-05-21 (clearinghouse)
 Paid x402 endpoints: 4 (ETH VRP, BTC VRP, USD SOFR, max-LTV — all at $0.001 onboarding tier)
-On-chain organic paid calls received: 370+ on ETH VRP (auto-discovered via Bazaar)
+On-chain paid calls received: 370+ on ETH VRP (incl. demo-wallet + Bazaar probe traffic)
 Active settlement contract: InterAgentRepoV4 (post 3-round audit, 0 findings)
 Demo loans executed end-to-end on V4: 1 (full originate → repay cycle, basescan tx hashes)
-Methodology pages IPFS-pinned: 2 (vrp-v1, agent-sofr-v1)  [agent-sofr-v1 pin pending]
+Methodology pages IPFS-pinned: 2 (agent-sofr-v1, repo-pricing-v1)  [agent-sofr-v1 page-hash refresh pending]
 ```
 
 ### Risks & mitigations
