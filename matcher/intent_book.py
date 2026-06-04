@@ -4,8 +4,10 @@ Intent book — SQLite-backed order book for the Inter-Agent Clearinghouse.
 Stores open lender/borrower intents + matched-quote records. The matcher
 queries this to find compatible pairs.
 
-Schema is simple. No partial fills in MVP — an intent is either open,
-matched, or expired/cancelled.
+Lender intents support PARTIAL FILLS (sweep): a large lend fills across many
+borrowers, decrementing remaining_amount per fill, staying 'open' until the
+remainder is dust (< LENDER_FILL_DUST), then 'matched'. Borrower intents are
+atomic — each is filled by exactly one lender.
 """
 
 from __future__ import annotations
@@ -21,6 +23,11 @@ from typing import Optional
 
 
 DB_PATH = Path("/opt/arms-signals/intent_book.sqlite")
+
+# A lender intent whose remaining capacity falls below this (USDC) after a fill
+# is considered fully deployed and closed — avoids leaving sub-dust slivers that
+# can never match even the smallest borrower.
+LENDER_FILL_DUST = 0.5
 
 
 class IntentSide(str, Enum):
@@ -49,6 +56,8 @@ class LenderIntent:
     matched_to: Optional[str] = None
     created_at: int = 0
     webhook_url: Optional[str] = None  # NEW: callback URL when matched
+    remaining_amount: float = 0.0      # sweep: unfilled capacity (set = amount at creation)
+    allow_partial: int = 0             # sweep: 1 = fill across many borrowers (page); 0 = atomic (bot/legacy)
 
 
 @dataclass
@@ -143,6 +152,21 @@ class IntentBook:
                 self._conn.execute(f"ALTER TABLE {table} ADD COLUMN webhook_url TEXT")
             except sqlite3.OperationalError:
                 pass  # column already exists
+        # Sweep migration: lender_intents.remaining_amount (unfilled capacity).
+        # Adds the column on existing DBs; backfill remaining = full amount.
+        try:
+            self._conn.execute("ALTER TABLE lender_intents ADD COLUMN remaining_amount REAL")
+        except sqlite3.OperationalError:
+            pass  # already exists
+        self._conn.execute(
+            "UPDATE lender_intents SET remaining_amount = amount WHERE remaining_amount IS NULL"
+        )
+        # Sweep migration: lender_intents.allow_partial (1 = page lender, partial
+        # fills; 0 = atomic, the original behaviour for bot/legacy intents).
+        try:
+            self._conn.execute("ALTER TABLE lender_intents ADD COLUMN allow_partial INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # already exists
         self._conn.commit()
 
     # ─── Intent submission ──────────────────────────────────────────────────
@@ -163,15 +187,19 @@ class IntentBook:
             created_at=now,
             webhook_url=intent.get("webhook_url"),
         )
+        row.remaining_amount = row.amount  # full capacity available at creation
+        row.allow_partial = 1 if intent.get("allow_partial") else 0
         self._conn.execute("""
             INSERT INTO lender_intents
               (intent_id, wallet, asset, amount, max_duration_sec, min_rate_bps,
-               max_default_prob, expires_at, status, created_at, webhook_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               max_default_prob, expires_at, status, created_at, webhook_url,
+               remaining_amount, allow_partial)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             row.intent_id, row.wallet, row.asset, row.amount,
             row.max_duration_sec, row.min_rate_bps, row.max_default_prob,
             row.expires_at, row.status, row.created_at, row.webhook_url,
+            row.remaining_amount, row.allow_partial,
         ))
         self._conn.commit()
         return row
@@ -252,6 +280,16 @@ class IntentBook:
         """, (intent_id, intent_id)).fetchone()
         return dict(row) if row is not None else None
 
+    def matches_for_intent(self, intent_id: str) -> list[dict]:
+        """All matches involving this intent, oldest first. A swept lender intent
+        accumulates many (one per borrower it filled); a borrower has at most one."""
+        rows = self._conn.execute("""
+            SELECT * FROM matches
+            WHERE lender_intent_id = ? OR borrower_intent_id = ?
+            ORDER BY created_at ASC
+        """, (intent_id, intent_id)).fetchall()
+        return [dict(r) for r in rows]
+
     def get_intent(self, intent_id: str) -> Optional[dict]:
         """Return intent record (lender or borrower) by id, or None."""
         for table in ("lender_intents", "borrower_intents"):
@@ -280,14 +318,40 @@ class IntentBook:
         """, (match_id, intent_id))
         self._conn.commit()
 
-    def record_match(self, lender_id: str, borrower_id: str, quote_payload: dict) -> Match:
+    def consume_lender(self, intent_id: str, fill_amount: float, match_id: str) -> None:
+        """Partial-fill (sweep): decrement a lender intent's remaining_amount by
+        the filled principal. While remaining stays >= dust the intent stays
+        'open' and keeps matching further borrowers; once it drops below dust it
+        is closed ('matched'). matched_to tracks the most recent fill."""
+        self._conn.execute("""
+            UPDATE lender_intents
+            SET remaining_amount = MAX(0, remaining_amount - ?), matched_to = ?
+            WHERE intent_id = ? AND status = 'open'
+        """, (fill_amount, match_id, intent_id))
+        row = self._conn.execute(
+            "SELECT remaining_amount FROM lender_intents WHERE intent_id = ?", (intent_id,)
+        ).fetchone()
+        if row is not None and (row["remaining_amount"] is None
+                                or row["remaining_amount"] < LENDER_FILL_DUST):
+            self._conn.execute(
+                "UPDATE lender_intents SET status = 'matched' WHERE intent_id = ? AND status = 'open'",
+                (intent_id,),
+            )
+        self._conn.commit()
+
+    def record_match(self, lender_id: str, borrower_id: str, quote_payload: dict,
+                     lender_fill_amount: Optional[float] = None) -> Match:
         match_id = "match_" + secrets.token_hex(8)
         now = int(time.time())
         self._conn.execute("""
             INSERT INTO matches (match_id, lender_intent_id, borrower_intent_id, quote_payload, created_at)
             VALUES (?, ?, ?, ?, ?)
         """, (match_id, lender_id, borrower_id, json.dumps(quote_payload), now))
-        self.mark_lender_matched(lender_id, match_id)
+        # Lender side fills partially (sweep); borrower side is atomic.
+        if lender_fill_amount is not None:
+            self.consume_lender(lender_id, lender_fill_amount, match_id)
+        else:
+            self.mark_lender_matched(lender_id, match_id)
         self.mark_borrower_matched(borrower_id, match_id)
         return Match(
             match_id=match_id,

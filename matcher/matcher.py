@@ -107,9 +107,12 @@ class Matcher:
     def find_match(
         self,
         collateral_price_usd: Optional[float] = None,  # None -> live Chainlink (+0.5% safety discount)
+        only_lender_id: Optional[str] = None,          # restrict matching to ONE lender (targeted sweep)
     ) -> Optional[Match]:
         """
         Run one matching cycle. Returns the first successful match, or None.
+        When only_lender_id is set, only that lender's intent is considered —
+        used by sweep_lender() to fill one intent without disturbing others.
         """
         # Pull open intents from both sides
         lenders = self.book.open_lenders()
@@ -121,11 +124,20 @@ class Matcher:
         # Find compatible pairs
         for borrower in borrowers:
             for lender in lenders:
+                # Targeted sweep — restrict to a single lender intent when asked.
+                if only_lender_id is not None and lender.intent_id != only_lender_id:
+                    continue
                 # Asset compat
                 if lender.asset != borrower.principal_asset:
                     continue
-                # Amount compat (lender must have enough)
-                if lender.amount < borrower.principal_amount:
+                # Amount compat. Sweep-enabled lenders (allow_partial) fill from
+                # remaining_amount across many borrowers; legacy/bot lenders are
+                # atomic and use the full amount (original single-fill behaviour).
+                lender_capacity = (lender.remaining_amount
+                                   if (lender.allow_partial and lender.remaining_amount
+                                       and lender.remaining_amount > 0)
+                                   else lender.amount)
+                if lender_capacity < borrower.principal_amount:
                     continue
                 # Duration compat (lender's max ≥ borrower's request)
                 if lender.max_duration_sec < borrower.duration_sec:
@@ -199,6 +211,10 @@ class Matcher:
                     lender_id=lender.intent_id,
                     borrower_id=borrower.intent_id,
                     quote_payload=quote.to_dict(),
+                    # Partial-fill only sweep-enabled lenders; atomic lenders
+                    # (None) fall back to the original full-consume on match.
+                    lender_fill_amount=(borrower.principal_amount
+                                        if lender.allow_partial else None),
                 )
 
                 # Fire webhooks (best-effort) — both sides get notified if they
@@ -225,6 +241,21 @@ class Matcher:
                 return match
 
         return None
+
+    def sweep_lender(self, lender_intent_id: str, max_fills: int = 25,
+                     collateral_price_usd: Optional[float] = None) -> list[Match]:
+        """Targeted sweep — fill ONE lender intent across as many borrowers as its
+        remaining capacity + the book allow, touching no other lender's intents.
+        Lets a large page lend deploy fully without disturbing the demo
+        market-maker's atomic intents."""
+        out: list[Match] = []
+        for _ in range(max_fills):
+            m = self.find_match(collateral_price_usd=collateral_price_usd,
+                                only_lender_id=lender_intent_id)
+            if m is None:
+                break
+            out.append(m)
+        return out
 
     def run_until_no_matches(self, max_iterations: int = 50) -> list[Match]:
         """
