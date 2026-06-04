@@ -15,6 +15,7 @@ Algorithm:
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 import urllib.request
@@ -25,6 +26,38 @@ from matcher.intent_book import (
 )
 from matcher.quote_engine import QuoteEngine, SignedQuote
 from oracle.calibration import REGIME_MAX_LTV
+
+
+# ─── Internal operator wallets (demo activity + D quoter) ────────────────────
+# When BOTH sides of a candidate match are wallets the operator controls
+# (A oracle / B+C executors / D data-buyer-quoter), we skip — these would
+# just round-trip USDC across our own wallets with zero economic benefit
+# and clutter the public Loan Registry with non-organic flow.
+#
+# Set INTERNAL_WALLETS env var: comma-separated 0x-prefixed addresses.
+# When unset, falls back to the per-pair self-trade guard only.
+#
+# Lazy-cached: app.py runs load_dotenv() AFTER importing this module, so we
+# must defer reading the env until first use (i.e., first find_match call).
+# Read-once and cached — a service restart re-runs the lazy init.
+def _load_internal_wallets() -> set[str]:
+    raw = os.getenv("INTERNAL_WALLETS", "")
+    out: set[str] = set()
+    for w in raw.split(","):
+        w = w.strip().lower()
+        if w.startswith("0x") and len(w) == 42:
+            out.add(w)
+    return out
+
+
+_INTERNAL_WALLETS_CACHE: Optional[set[str]] = None
+
+
+def _get_internal_wallets() -> set[str]:
+    global _INTERNAL_WALLETS_CACHE
+    if _INTERNAL_WALLETS_CACHE is None:
+        _INTERNAL_WALLETS_CACHE = _load_internal_wallets()
+    return _INTERNAL_WALLETS_CACHE
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -73,7 +106,7 @@ class Matcher:
 
     def find_match(
         self,
-        collateral_price_usd: float = 2080.0,  # caller can pass live price
+        collateral_price_usd: Optional[float] = None,  # None -> live Chainlink (+0.5% safety discount)
     ) -> Optional[Match]:
         """
         Run one matching cycle. Returns the first successful match, or None.
@@ -100,13 +133,46 @@ class Matcher:
                 # Rate compat (lender's min ≤ borrower's max — clearable spread)
                 if lender.min_rate_bps > borrower.max_rate_bps:
                     continue
+                # Self-trade guard — refuse pairs where lender wallet == borrower wallet.
+                # An agent posting both sides shouldn't round-trip USDC to itself:
+                # zero economic outcome, only gas burn + misleading registry entries.
+                # Agents that genuinely want to play both roles should use two wallets.
+                if lender.wallet.lower() == borrower.wallet.lower():
+                    continue
+                # Internal-cross guard — refuse pairs where BOTH wallets are operator
+                # wallets we control (B/C executors + D quoter). The demo activity bot
+                # already pairs B↔C deliberately; this only blocks the unintended case
+                # where D's quoter matches against B/C instead of an external taker.
+                # Mixed pairs (operator ↔ external) ARE allowed — that's the whole point
+                # of D-quoter: provide a real maker side to external takers.
+                _internal = _get_internal_wallets()
+                if _internal and \
+                   lender.wallet.lower() in _internal and \
+                   borrower.wallet.lower() in _internal:
+                    # Allow B↔C demo cross by checking the lender_wallet is exactly D.
+                    # If D appears on EITHER side, require the other side to be external.
+                    # B↔C pairs (no D) → allow (existing demo activity preserves liveness).
+                    d_addr = os.getenv("WALLET_D_ADDR", "").lower()
+                    if d_addr and (lender.wallet.lower() == d_addr or borrower.wallet.lower() == d_addr):
+                        continue
 
-                # Try to build a quote at lender's min_rate (cheapest for borrower)
-                # using compute_collateral mode — this tells us collateral needed
+                # ── RFQ cross — the rate is DISCOVERED, not imposed ──────────
+                # Price-time priority: the resting (maker) order sets the clearing
+                # rate; the incoming (taker) accepts it. Overlap (lender.min ≤
+                # borrower.max) was checked above, so the crossed rate is ALWAYS
+                # within both sides' limits — no overshoot recheck needed.
+                #   lender rested first → its ask (min_rate) is the price
+                #   borrower rested first → its bid (max_rate) is the price
+                # The engine no longer sets the rate; it only sizes the collateral
+                # from the regime's max-safe LTV (discover price, enforce safety).
+                if lender.created_at <= borrower.created_at:
+                    cross_rate_bps = lender.min_rate_bps
+                else:
+                    cross_rate_bps = borrower.max_rate_bps
                 try:
-                    quote = self.engine.compute_collateral(
+                    quote = self.engine.cross_quote(
                         principal_amount_usd=borrower.principal_amount,
-                        target_rate_bps=lender.min_rate_bps,
+                        cross_rate_bps=cross_rate_bps,
                         duration_sec=borrower.duration_sec,
                         borrower=borrower.wallet,
                         lender=lender.wallet,
@@ -114,10 +180,9 @@ class Matcher:
                         collateral_asset=borrower.collateral_asset,
                         collateral_price_usd=collateral_price_usd,
                     )
-                except ValueError as e:
-                    # Rate too low to clear premium → try next pair
-                    # If we wanted to be smarter, we'd retry at the borrower's max_rate
-                    # (giving them less collateral relief), but MVP: skip
+                except ValueError:
+                    # Real failures only (e.g. principal too small to round to
+                    # non-zero raw units). No more "below floor" rejections.
                     continue
 
                 # Convert quoted collateral to human units for comparison
