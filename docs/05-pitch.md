@@ -7,8 +7,8 @@
 - **Project name:** RegimeShift
 - **RFB target:** 04 — Adaptive Portfolio Manager
 - **Demo URL:** https://regimeshift.xyz
-- **GitHub:** https://github.com/tradingdesk26/regimeshift-clearinghouse (made public on submission day)
-- **Related repos:** [vrp-agent](https://github.com/tradingdesk26/vrp-agent), [armsys-signals](https://github.com/tradingdesk26/armsys-signals), [regimeshift-fx](https://github.com/tradingdesk26/regimeshift-fx)
+- **GitHub:** https://github.com/regimeshift-xyz/regimeshift-clearinghouse (made public on submission day)
+- **Related repos:** [vrp-agent](https://github.com/tradingdesk26/vrp-agent), [armsys-signals](https://github.com/tradingdesk26/armsys-signals), [regimeshift-fx](https://github.com/regimeshift-xyz/regimeshift-fx)
 
 ---
 
